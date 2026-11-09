@@ -5,10 +5,10 @@ import { toPng } from "html-to-image";
 import {
   Download,
   Sparkles,
-  TrendingUp,
   MousePointerClick,
   CheckCircle2,
 } from "lucide-react";
+import GrafiquinhoLogo from "@/components/GrafiquinhoLogo";
 import { ChartConfig, ColumnMeta, PointHighlight } from "@/types/chart";
 import {
   extractGroupedXKey,
@@ -509,9 +509,13 @@ export default function ReportChartCanvas({
           {/* Report Header */}
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-5 border-b border-current/10">
             <div className="space-y-1 max-w-2xl">
-              <div className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest opacity-60">
-                <TrendingUp className="w-3.5 h-3.5" />
-                <span>Relatório Visual de Dados</span>
+              <div className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest opacity-65">
+                <GrafiquinhoLogo
+                  variant="mark"
+                  size={16}
+                  accentColor={chartConfig.primaryColor}
+                />
+                <span>Grafiquinho • Relatório Visual</span>
               </div>
               <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight leading-snug">
                 {chartConfig.title || "Relatório sem Título"}
@@ -958,9 +962,16 @@ export default function ReportChartCanvas({
           )}
 
           {/* Report Footer */}
-          <div className="mt-6 pt-4 border-t border-current/10 flex flex-wrap items-center justify-between gap-2 text-[11px] opacity-60">
+          <div className="mt-6 pt-4 border-t border-current/10 flex flex-wrap items-center justify-between gap-2 text-[11px] opacity-65">
             <div>{chartConfig.footer || "Fonte: Dados internos"}</div>
-            <div className="font-medium">Gerado com Print Gráfico Fácil</div>
+            <div className="inline-flex items-center gap-1.5 font-semibold">
+              <GrafiquinhoLogo
+                variant="mark"
+                size={15}
+                accentColor={chartConfig.primaryColor}
+              />
+              <span>Gerado com Grafiquinho</span>
+            </div>
           </div>
         </div>
       </div>

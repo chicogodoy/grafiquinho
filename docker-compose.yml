@@ -3,11 +3,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: print-grafico-backend
+    container_name: grafiquinho-backend
     ports:
       - "8000:8000"
     environment:
-      - DUCKDB_PATH=/app/data/print_grafico.duckdb
+      - DUCKDB_PATH=/app/data/grafiquinho.duckdb
     volumes:
       - duckdb_data:/app/data
     restart: unless-stopped
@@ -18,7 +18,7 @@ services:
       dockerfile: Dockerfile
       args:
         BACKEND_INTERNAL_URL: http://backend:8000
-    container_name: print-grafico-frontend
+    container_name: grafiquinho-frontend
     ports:
       - "3000:3000"
     environment:

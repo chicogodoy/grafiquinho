@@ -16,10 +16,17 @@ if os.environ.get("DUCKDB_PATH"):
     DATA_DIR = DB_PATH.parent
 elif os.environ.get("VERCEL"):
     DATA_DIR = Path("/tmp")
-    DB_PATH = DATA_DIR / "print_grafico.duckdb"
+    DB_PATH = DATA_DIR / "grafiquinho.duckdb"
 else:
     DATA_DIR = BASE_DIR / "data"
-    DB_PATH = DATA_DIR / "print_grafico.duckdb"
+    legacy_path = DATA_DIR / "print_grafico.duckdb"
+    new_path = DATA_DIR / "grafiquinho.duckdb"
+    if legacy_path.exists() and not new_path.exists():
+        try:
+            legacy_path.rename(new_path)
+        except OSError:
+            pass
+    DB_PATH = new_path if not legacy_path.exists() else legacy_path
 
 
 def ensure_data_dir() -> None:

@@ -1,4 +1,4 @@
-# Print Gráfico Fácil
+# <img src="frontend/public/logo.svg" width="32" height="32" align="top" alt="Grafiquinho Logo" /> Grafiquinho
 
 Estúdio para criação de relatórios visuais e gráficos de **Linha e Área** estilizados a partir de upload de CSV, Copy/Paste de planilhas ou inserção manual de pontos e rótulos, com **pré-visualização filtrável em tempo real**, **tipificação livre de colunas** no **DuckDB** e exportação de alta resolução em **PNG**.
 
@@ -29,15 +29,15 @@ Acesse **http://localhost:3000** (o banco DuckDB ficará persistido no volume Do
 ### Opção B: Container Único (Dockerfile Unificado na Raiz)
 Ideal para plataformas baseadas em imagem única de container (Cloud Run, Render, Railway, Fly.io):
 ```bash
-docker build -t print-grafico-facil .
-docker run -p 3000:3000 -v duckdb_data:/app/data print-grafico-facil
+docker build -t grafiquinho .
+docker run -p 3000:3000 -v duckdb_data:/app/data grafiquinho
 ```
 
 ---
 
 ## 3. Deploy na Vercel
 
-> **Nota sobre Arquitetura na Vercel**: A Vercel não executa imagens `Dockerfile` diretamente, mas possui suporte nativo híbrido para **Next.js + Python Serverless Functions (FastAPI)**. O projeto já está configurado com [vercel.json](file:///Users/francisco.godoy/Documents/ws_6_print_grafico_facil/vercel.json) e [api/index.py](file:///Users/francisco.godoy/Documents/ws_6_print_grafico_facil/api/index.py) para funcionar nativamente na Vercel (usando `/tmp/print_grafico.duckdb`).
+> **Nota sobre Arquitetura na Vercel**: A Vercel não executa imagens `Dockerfile` diretamente, mas possui suporte nativo híbrido para **Next.js + Python Serverless Functions (FastAPI)**. O projeto já está configurado com [vercel.json](file:///Users/francisco.godoy/Documents/ws_6_print_grafico_facil/vercel.json) e [api/index.py](file:///Users/francisco.godoy/Documents/ws_6_print_grafico_facil/api/index.py) para funcionar nativamente na Vercel (usando `/tmp/grafiquinho.duckdb`).
 
 Para publicar na Vercel via linha de comando:
 ```bash

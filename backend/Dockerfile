@@ -4,7 +4,7 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DUCKDB_PATH=/app/data/print_grafico.duckdb
+    DUCKDB_PATH=/app/data/grafiquinho.duckdb
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

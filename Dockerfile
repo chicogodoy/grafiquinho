@@ -24,7 +24,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=3000 \
     HOSTNAME="0.0.0.0" \
     BACKEND_INTERNAL_URL="http://127.0.0.1:8000" \
-    DUCKDB_PATH="/app/data/print_grafico.duckdb"
+    DUCKDB_PATH="/app/data/grafiquinho.duckdb"
 
 # Instala dependências Python do Backend
 COPY backend/requirements.txt ./backend/requirements.txt

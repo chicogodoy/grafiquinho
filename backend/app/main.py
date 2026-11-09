@@ -15,8 +15,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Print Gráfico Fácil API",
-    description="API local com DuckDB para ingestão de dados, filtragem e relatórios visuais",
+    title="Grafiquinho API",
+    description="API local com DuckDB para ingestão de dados, filtragem e relatórios visuais do Grafiquinho",
     version="1.0.0",
     lifespan=lifespan,
 )

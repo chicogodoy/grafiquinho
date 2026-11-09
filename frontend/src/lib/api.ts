@@ -6,7 +6,19 @@ import {
   QueryFilters,
 } from "@/types/chart";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
+function getApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1")
+  ) {
+    return "http://127.0.0.1:8000/api";
+  }
+  return "/api";
+}
 
 export interface QueryProjectResponse {
   project: ProjectMeta;
@@ -16,7 +28,7 @@ export interface QueryProjectResponse {
 }
 
 export async function fetchProjects(): Promise<ProjectMeta[]> {
-  const res = await fetch(`${API_BASE}/projects`, { cache: "no-store" });
+  const res = await fetch(`${getApiBase()}/projects`, { cache: "no-store" });
   if (!res.ok) throw new Error("Falha ao carregar projetos do DuckDB");
   const data = await res.json();
   return data.projects || [];
@@ -42,7 +54,7 @@ export async function queryProjectData(
     sortDir: filters.sortDir || "asc",
   };
 
-  const res = await fetch(`${API_BASE}/projects/${projectId}/query`, {
+  const res = await fetch(`${getApiBase()}/projects/${projectId}/query`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -62,7 +74,7 @@ export async function uploadCsvDataset(
   formData.append("file", file);
   if (name) formData.append("name", name);
 
-  const res = await fetch(`${API_BASE}/projects/upload-csv`, {
+  const res = await fetch(`${getApiBase()}/projects/upload-csv`, {
     method: "POST",
     body: formData,
   });
@@ -78,7 +90,7 @@ export async function ingestCopyPasteDataset(
   rawText: string,
   hasHeader: boolean
 ): Promise<ProjectMeta> {
-  const res = await fetch(`${API_BASE}/projects/copy-paste`, {
+  const res = await fetch(`${getApiBase()}/projects/copy-paste`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, rawText, hasHeader }),
@@ -94,7 +106,7 @@ export async function createManualDataset(
   name: string,
   rows: Record<string, any>[]
 ): Promise<ProjectMeta> {
-  const res = await fetch(`${API_BASE}/projects/manual`, {
+  const res = await fetch(`${getApiBase()}/projects/manual`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -121,7 +133,7 @@ export async function saveProjectState(
     highlights?: Record<string, PointHighlight>;
   }
 ): Promise<ProjectMeta> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/state`, {
+  const res = await fetch(`${getApiBase()}/projects/${projectId}/state`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -138,7 +150,7 @@ export async function addProjectRow(
   values: Record<string, any>,
   highlight?: PointHighlight
 ): Promise<{ rowId: number }> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/rows`, {
+  const res = await fetch(`${getApiBase()}/projects/${projectId}/rows`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ values, highlight }),
@@ -155,7 +167,7 @@ export async function updateProjectRow(
   rowId: number,
   payload: { active?: boolean; values?: Record<string, any> }
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/rows/${rowId}`, {
+  const res = await fetch(`${getApiBase()}/projects/${projectId}/rows/${rowId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -170,7 +182,7 @@ export async function deleteProjectRow(
   projectId: string,
   rowId: number
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/rows/${rowId}`, {
+  const res = await fetch(`${getApiBase()}/projects/${projectId}/rows/${rowId}`, {
     method: "DELETE",
   });
   if (!res.ok) {

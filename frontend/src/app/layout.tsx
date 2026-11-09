@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Print Gráfico Fácil • Estúdio de Relatórios e Destaques",
+  title: "Grafiquinho • Estúdio de Relatórios e Destaques",
   description:
     "Crie relatórios e gráficos de linha e área estilizados a partir de CSV, Copy/Paste ou entrada manual com DuckDB local.",
 };
@@ -18,4 +18,3 @@ export default function RootLayout({
     </html>
   );
 }
-

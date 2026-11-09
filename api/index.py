@@ -13,6 +13,6 @@ if str(BACKEND_DIR) not in sys.path:
 from app.database import init_db  # noqa: E402
 from app.main import app  # noqa: E402
 
-# Garante que o banco DuckDB (/tmp/print_grafico.duckdb na Vercel) esteja inicializado
+# Garante que o banco DuckDB (/tmp/grafiquinho.duckdb na Vercel) esteja inicializado
 init_db()
 

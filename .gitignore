@@ -3,9 +3,10 @@
 backend/.venv/
 .venv/
 
-# Next.js build output
+# Next.js & TypeScript build output
 frontend/.next/
 frontend/out/
+*.tsbuildinfo
 
 # Python cache
 **/__pycache__/

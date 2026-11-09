@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Sparkles, X, Trash2, Check } from "lucide-react";
+import { X, Trash2, Check } from "lucide-react";
+import GrafiquinhoLogo from "@/components/GrafiquinhoLogo";
 import { ChartConfig, PointHighlight } from "@/types/chart";
 import { formatMetricValue } from "@/lib/formatters";
 
@@ -89,10 +90,14 @@ export default function PointHighlightModal({
         <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div
-              className="w-8 h-8 rounded-xl flex items-center justify-center shadow-inner"
+              className="w-9 h-9 rounded-xl flex items-center justify-center shadow-inner text-white"
               style={{ backgroundColor: color }}
             >
-              <Sparkles className="w-4 h-4 text-white" />
+              <GrafiquinhoLogo
+                variant="mark"
+                size={20}
+                accentColor="#ffffff"
+              />
             </div>
             <div>
               <h3 className="text-sm font-bold">

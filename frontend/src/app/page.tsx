@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { BarChart3, Sparkles, RefreshCw, Table2 } from "lucide-react";
+import { Sparkles, RefreshCw, Table2 } from "lucide-react";
+import GrafiquinhoLogo from "@/components/GrafiquinhoLogo";
 import {
   ChartConfig,
   ColumnDType,
@@ -441,13 +442,11 @@ export default function HomePage() {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center shadow-sm">
-              <BarChart3 className="w-5 h-5" />
-            </div>
+            <GrafiquinhoLogo size={38} className="shadow-xs rounded-xl shrink-0" />
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-base text-slate-900 tracking-tight">
-                  Print Gráfico Fácil
+                  Grafiquinho
                 </span>
                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 flex items-center gap-1">
                   <Sparkles className="w-3 h-3" />
