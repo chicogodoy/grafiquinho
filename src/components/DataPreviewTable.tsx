@@ -408,6 +408,35 @@ export default function DataPreviewTable({
             </select>
           </div>
 
+          {/* Target / Meta Column (Any field or None) */}
+          <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-indigo-200 text-xs shadow-2xs">
+            <span className="text-slate-500 font-medium">Coluna Meta:</span>
+            <select
+              value={chartConfig.secondaryYColumn || ""}
+              onChange={(e) =>
+                onChangeChartConfig({ secondaryYColumn: e.target.value })
+              }
+              className="font-bold text-teal-700 bg-transparent focus:outline-none"
+            >
+              <option value="">Sem Meta (Não plotar)</option>
+              {columnsMeta.map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.label} ({DTYPE_LABELS[c.dtype] || c.dtype})
+                </option>
+              ))}
+            </select>
+            {chartConfig.secondaryYColumn && (
+              <button
+                type="button"
+                onClick={() => onChangeChartConfig({ secondaryYColumn: "" })}
+                className="ml-0.5 px-1.5 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[10px] transition-colors cursor-pointer"
+                title="Remover a linha de meta do gráfico"
+              >
+                ✕ Remover
+              </button>
+            )}
+          </div>
+
           {/* Optional Label Column */}
           <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-indigo-200 text-xs shadow-2xs">
             <span className="text-slate-500 font-medium">Coluna Rótulo:</span>

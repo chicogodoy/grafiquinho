@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import {
   ChartConfig,
+  ColumnMeta,
   PointHighlight,
   THEME_PRESETS,
   ThemePreset,
@@ -18,6 +19,7 @@ import {
 
 interface ChartStyleSidebarProps {
   chartConfig: ChartConfig;
+  columnsMeta?: ColumnMeta[];
   highlights: Record<string, PointHighlight>;
   rows: Record<string, any>[];
   onChangeConfig: (patch: Partial<ChartConfig>) => void;
@@ -27,6 +29,7 @@ interface ChartStyleSidebarProps {
 
 export default function ChartStyleSidebar({
   chartConfig,
+  columnsMeta = [],
   highlights,
   rows,
   onChangeConfig,
@@ -191,24 +194,58 @@ export default function ChartStyleSidebar({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600">2ª Linha (Meta/Comp.)</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[11px] text-slate-500">
-                    {chartConfig.secondaryColor}
+              <div className="space-y-1.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-700 font-semibold">
+                    Meta / Comparação no Gráfico
                   </span>
-                  <input
-                    type="color"
-                    value={chartConfig.secondaryColor}
-                    onChange={(e) =>
-                      onChangeConfig({
-                        secondaryColor: e.target.value,
-                        theme: "custom",
-                      })
-                    }
-                    className="w-7 h-7 rounded cursor-pointer border border-slate-200"
-                  />
+                  {chartConfig.secondaryYColumn && (
+                    <button
+                      type="button"
+                      onClick={() => onChangeConfig({ secondaryYColumn: "" })}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-100 hover:bg-red-200 text-red-700 transition-colors cursor-pointer"
+                    >
+                      ✕ Remover Meta
+                    </button>
+                  )}
                 </div>
+
+                <select
+                  value={chartConfig.secondaryYColumn || ""}
+                  onChange={(e) =>
+                    onChangeConfig({ secondaryYColumn: e.target.value })
+                  }
+                  className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-800"
+                >
+                  <option value="">Sem Meta (Não plotar)</option>
+                  {columnsMeta.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      Meta a partir de: {c.label}
+                    </option>
+                  ))}
+                </select>
+
+                {chartConfig.secondaryYColumn && (
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-slate-600">Cor da Meta</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[11px] text-slate-500">
+                        {chartConfig.secondaryColor}
+                      </span>
+                      <input
+                        type="color"
+                        value={chartConfig.secondaryColor}
+                        onChange={(e) =>
+                          onChangeConfig({
+                            secondaryColor: e.target.value,
+                            theme: "custom",
+                          })
+                        }
+                        className="w-7 h-7 rounded cursor-pointer border border-slate-200"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between">
@@ -307,6 +344,37 @@ export default function ChartStyleSidebar({
                   Barras Horizontais
                 </button>
               </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block font-semibold text-slate-700">
+                  Coluna de Meta / Comparação
+                </label>
+                {chartConfig.secondaryYColumn && (
+                  <button
+                    type="button"
+                    onClick={() => onChangeConfig({ secondaryYColumn: "" })}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 cursor-pointer"
+                  >
+                    ✕ Remover Meta
+                  </button>
+                )}
+              </div>
+              <select
+                value={chartConfig.secondaryYColumn || ""}
+                onChange={(e) =>
+                  onChangeConfig({ secondaryYColumn: e.target.value })
+                }
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold text-slate-800"
+              >
+                <option value="">Sem Meta (Não plotar no gráfico)</option>
+                {columnsMeta.map((c) => (
+                  <option key={c.name} value={c.name}>
+                    Usar campo: {c.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

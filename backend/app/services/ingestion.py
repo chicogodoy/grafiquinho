@@ -217,7 +217,11 @@ def build_default_chart_config(
         y_agg = "count"
 
     x_grouping = "day" if (x_col in date_cols and row_count > 30) else "raw"
-    sec_y_col = num_cols[1] if len(num_cols) > 1 else ""
+    sec_y_col = ""
+    for c in num_cols[1:]:
+        if any(k in c for k in ("meta", "target", "objetivo", "orcado", "previsto")):
+            sec_y_col = c
+            break
     default_chart_type = "bar" if is_categorical_x else "area"
     default_value_mode = "both_label" if is_categorical_x else "absolute"
     default_sort = "value_desc" if is_categorical_x else "original"

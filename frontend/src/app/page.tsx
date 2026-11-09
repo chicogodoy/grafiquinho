@@ -569,6 +569,7 @@ export default function HomePage() {
             <div className="lg:col-span-4 xl:col-span-3">
               <ChartStyleSidebar
                 chartConfig={activeProject.chart_config}
+                columnsMeta={activeProject.columns_meta}
                 highlights={activeProject.highlights || {}}
                 rows={chartRows}
                 onChangeConfig={handleChangeChartConfig}

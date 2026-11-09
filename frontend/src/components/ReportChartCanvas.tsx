@@ -97,6 +97,25 @@ const AGG_LABELS: Record<string, string> = {
   avg: "Média",
 };
 
+function parseFlexibleNumber(val: any): number | null {
+  if (val === null || val === undefined || val === "") return null;
+  if (typeof val === "number") return Number.isNaN(val) ? null : val;
+  const s = String(val)
+    .trim()
+    .replace(/R\$\s?/gi, "")
+    .replace(/%/g, "")
+    .trim();
+  if (!s) return null;
+  const normalized =
+    s.includes(",") && s.includes(".")
+      ? s.replace(/\./g, "").replace(",", ".")
+      : s.includes(",")
+      ? s.replace(",", ".")
+      : s;
+  const n = Number(normalized);
+  return Number.isNaN(n) ? null : n;
+}
+
 export default function ReportChartCanvas({
   chartConfig,
   columnsMeta,
@@ -176,14 +195,7 @@ export default function ReportChartCanvas({
         const rawX = row[chartConfig.xColumn];
         const rawY = Number(row[chartConfig.yColumn]);
         const secCol = chartConfig.secondaryYColumn;
-        const rawSecY =
-          secCol &&
-          row[secCol] !== null &&
-          row[secCol] !== undefined &&
-          row[secCol] !== "" &&
-          !Number.isNaN(Number(row[secCol]))
-            ? Number(row[secCol])
-            : null;
+        const rawSecY = secCol ? parseFlexibleNumber(row[secCol]) : null;
         const rowLabel = chartConfig.labelColumn
           ? String(row[chartConfig.labelColumn] || "").trim()
           : "";
@@ -249,13 +261,10 @@ export default function ReportChartCanvas({
         }
 
         if (secCol) {
-          const sVal = row[secCol];
-          if (sVal !== null && sVal !== undefined && sVal !== "") {
-            const numS = Number(sVal);
-            if (!Number.isNaN(numS)) {
-              entry.sumSecY += numS;
-              entry.numCountSecY += 1;
-            }
+          const numS = parseFlexibleNumber(row[secCol]);
+          if (numS !== null) {
+            entry.sumSecY += numS;
+            entry.numCountSecY += 1;
           }
         }
 
@@ -720,6 +729,36 @@ export default function ReportChartCanvas({
                   ? "Ordem: Maior → Menor"
                   : "Ordenar Maior → Menor"}
               </button>
+
+              {/* Target / Meta Field Selector + Remove Option */}
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-slate-200 bg-slate-50 text-xs">
+                <span className="text-slate-500 font-medium">Meta:</span>
+                <select
+                  value={chartConfig.secondaryYColumn || ""}
+                  onChange={(e) =>
+                    onChangeConfig({ secondaryYColumn: e.target.value })
+                  }
+                  className="font-bold text-teal-700 bg-transparent focus:outline-none cursor-pointer"
+                  title="Selecione qualquer coluna para plotar como Meta ou escolha Sem Meta para remover"
+                >
+                  <option value="">Sem Meta (Não plotar)</option>
+                  {columnsMeta.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                {chartConfig.secondaryYColumn && (
+                  <button
+                    type="button"
+                    onClick={() => onChangeConfig({ secondaryYColumn: "" })}
+                    className="px-1.5 py-0.5 rounded bg-red-100 hover:bg-red-200 text-red-700 font-bold text-[10px] transition-colors cursor-pointer"
+                    title="Remover a meta do gráfico"
+                  >
+                    ✕ Remover
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -830,15 +869,16 @@ export default function ReportChartCanvas({
                   <span>{yColLabel}</span>
                 </div>
 
-                {chartConfig.secondaryYColumn && secondaryLinePath && (
-                  <div className="flex items-center gap-2 font-medium opacity-80">
-                    <span
-                      className="w-4 h-0.5 inline-block border-b-2 border-dashed"
-                      style={{ borderColor: chartConfig.secondaryColor }}
-                    />
-                    <span>{secColLabel}</span>
-                  </div>
-                )}
+                {chartConfig.secondaryYColumn &&
+                  plottedPoints.some((p) => p.secondaryY !== null) && (
+                    <div className="flex items-center gap-2 font-medium opacity-80">
+                      <span
+                        className="w-4 h-0.5 inline-block border-b-2 border-dashed"
+                        style={{ borderColor: chartConfig.secondaryColor }}
+                      />
+                      <span>Meta: {secColLabel}</span>
+                    </div>
+                  )}
               </div>
 
               {Object.keys(highlights).length > 0 && (
@@ -1030,17 +1070,34 @@ export default function ReportChartCanvas({
                             strokeWidth={hl ? 2 : 0}
                           />
 
-                          {/* Optional Secondary Target Marker */}
-                          {pt.secondaryY !== null && (
-                            <line
-                              x1={pt.secondaryY}
-                              y1={barY - 3}
-                              x2={pt.secondaryY}
-                              y2={barY + barH + 3}
-                              stroke={chartConfig.secondaryColor}
-                              strokeWidth={2.5}
-                            />
-                          )}
+                          {/* Optional Secondary Target Marker + Value */}
+                          {pt.secondaryY !== null &&
+                            pt.rawSecondaryY !== null && (
+                              <g>
+                                <line
+                                  x1={pt.secondaryY}
+                                  y1={barY - 4}
+                                  x2={pt.secondaryY}
+                                  y2={barY + barH + 4}
+                                  stroke={chartConfig.secondaryColor}
+                                  strokeWidth={2.5}
+                                />
+                                <text
+                                  x={pt.secondaryY}
+                                  y={barY - 6}
+                                  textAnchor="middle"
+                                  fill={chartConfig.secondaryColor}
+                                  fontSize={9.5}
+                                  fontWeight={700}
+                                >
+                                  Meta:{" "}
+                                  {formatMetricValue(
+                                    pt.rawSecondaryY,
+                                    effectiveValueFormat
+                                  )}
+                                </text>
+                              </g>
+                            )}
 
                           {/* Value & Share Label on Right */}
                           {chartConfig.showDataLabels !== "none" ||
@@ -1204,7 +1261,7 @@ export default function ReportChartCanvas({
                           );
                         })}
 
-                        {/* Secondary Y Line over Vertical Bars */}
+                        {/* Secondary Y Line & Points over Vertical Bars */}
                         {secondaryLinePath && (
                           <path
                             d={secondaryLinePath}
@@ -1215,6 +1272,42 @@ export default function ReportChartCanvas({
                             strokeLinecap="round"
                           />
                         )}
+                        {plottedPoints.map((pt, idx) => {
+                          if (
+                            pt.secondaryY === null ||
+                            pt.rawSecondaryY === null
+                          )
+                            return null;
+                          return (
+                            <g key={`vbar-sec-${pt.pointKey}-${idx}`}>
+                              <circle
+                                cx={pt.x}
+                                cy={pt.secondaryY}
+                                r={4}
+                                fill={chartConfig.backgroundColor}
+                                stroke={chartConfig.secondaryColor}
+                                strokeWidth={2.5}
+                              />
+                              {(plottedPoints.length <= 16 ||
+                                hoveredKey === pt.pointKey) && (
+                                <text
+                                  x={pt.x}
+                                  y={pt.secondaryY - 8}
+                                  textAnchor="middle"
+                                  fill={chartConfig.secondaryColor}
+                                  fontSize={9.5}
+                                  fontWeight={700}
+                                >
+                                  Meta:{" "}
+                                  {formatMetricValue(
+                                    pt.rawSecondaryY,
+                                    effectiveValueFormat
+                                  )}
+                                </text>
+                              )}
+                            </g>
+                          );
+                        })}
                       </>
                     ) : (
                       <>
