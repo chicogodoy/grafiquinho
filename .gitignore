@@ -4,6 +4,8 @@ backend/.venv/
 .venv/
 
 # Next.js & TypeScript build output
+.next/
+out/
 frontend/.next/
 frontend/out/
 *.tsbuildinfo
