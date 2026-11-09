@@ -30,6 +30,8 @@ class ChartConfig(BaseModel):
     xGrouping: str = "raw"  # "raw" | "day" | "hour" | "month"
     yColumn: str = ""
     yAggregation: str = "none"  # "none" | "count" | "count_distinct" | "sum" | "avg"
+    valueMode: str = "absolute"  # "absolute" | "percent_of_total" | "both_label"
+    categorySort: str = "original"  # "original" | "value_desc" | "value_asc" | "alpha"
     secondaryYColumn: Optional[str] = ""
     labelColumn: Optional[str] = ""
     theme: str = "editorial_light"
