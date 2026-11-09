@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "next build",
+    "build": "next build && mkdir -p frontend && rm -rf frontend/.next && cp -R .next frontend/.next",
     "start": "next start -p 3000"
   },
   "dependencies": {
