@@ -52,6 +52,7 @@ def init_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS projects (
                 id VARCHAR PRIMARY KEY,
+                client_id VARCHAR DEFAULT 'public',
                 name VARCHAR NOT NULL,
                 source_type VARCHAR NOT NULL,
                 table_name VARCHAR NOT NULL,
@@ -63,6 +64,12 @@ def init_db() -> None:
             )
             """
         )
+        try:
+            conn.execute(
+                "ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_id VARCHAR DEFAULT 'public'"
+            )
+        except Exception:
+            pass
 
         count_row = conn.execute("SELECT COUNT(*) FROM projects").fetchone()
         if count_row and count_row[0] == 0:
@@ -170,11 +177,12 @@ def _seed_demo_project(conn: duckdb.DuckDBPyConnection) -> None:
 
     conn.execute(
         """
-        INSERT INTO projects (id, name, source_type, table_name, columns_meta, chart_config, highlights, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO projects (id, client_id, name, source_type, table_name, columns_meta, chart_config, highlights, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             project_id,
+            "public",
             "Receita Mensal 2026 (Demo)",
             "demo",
             table_name,

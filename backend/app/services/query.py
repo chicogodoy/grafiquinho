@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -16,14 +17,29 @@ def _sanitize_value(v: Any) -> Any:
     return v
 
 
-def list_projects() -> List[Dict[str, Any]]:
+def list_projects(client_id: str = "public") -> List[Dict[str, Any]]:
     with get_db_connection() as conn:
+        # Local migration: if not on Vercel and there are legacy non-demo projects with client_id='public' or NULL,
+        # assign them to the local user's client_id so existing local projects remain visible to their owner.
+        if client_id != "public" and not os.environ.get("VERCEL"):
+            conn.execute(
+                """
+                UPDATE projects
+                SET client_id = ?
+                WHERE (client_id IS NULL OR client_id = 'public')
+                  AND source_type != 'demo'
+                """,
+                [client_id],
+            )
+
         rows = conn.execute(
             """
-            SELECT id, name, source_type, table_name, columns_meta, chart_config, highlights, created_at, updated_at
+            SELECT id, client_id, name, source_type, table_name, columns_meta, chart_config, highlights, created_at, updated_at
             FROM projects
-            ORDER BY updated_at DESC
-            """
+            WHERE client_id = ? OR source_type = 'demo'
+            ORDER BY CASE WHEN source_type = 'demo' THEN 1 ELSE 0 END ASC, updated_at DESC
+            """,
+            [client_id],
         ).fetchall()
 
         result = []
@@ -31,24 +47,28 @@ def list_projects() -> List[Dict[str, Any]]:
             result.append(
                 {
                     "id": r[0],
-                    "name": r[1],
-                    "source_type": r[2],
-                    "table_name": r[3],
-                    "columns_meta": json.loads(r[4]) if isinstance(r[4], str) else r[4],
-                    "chart_config": json.loads(r[5]) if isinstance(r[5], str) else r[5],
-                    "highlights": json.loads(r[6]) if isinstance(r[6], str) else r[6],
-                    "created_at": str(r[7]),
-                    "updated_at": str(r[8]),
+                    "client_id": r[1] or "public",
+                    "name": r[2],
+                    "source_type": r[3],
+                    "table_name": r[4],
+                    "columns_meta": json.loads(r[5]) if isinstance(r[5], str) else r[5],
+                    "chart_config": json.loads(r[6]) if isinstance(r[6], str) else r[6],
+                    "highlights": json.loads(r[7]) if isinstance(r[7], str) else r[7],
+                    "created_at": str(r[8]),
+                    "updated_at": str(r[9]),
                 }
             )
         return result
 
 
-def get_project_metadata(project_id: str) -> Optional[Dict[str, Any]]:
+def get_project_metadata(
+    project_id: str,
+    client_id: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     with get_db_connection() as conn:
         r = conn.execute(
             """
-            SELECT id, name, source_type, table_name, columns_meta, chart_config, highlights, created_at, updated_at
+            SELECT id, client_id, name, source_type, table_name, columns_meta, chart_config, highlights, created_at, updated_at
             FROM projects
             WHERE id = ?
             """,
@@ -56,23 +76,39 @@ def get_project_metadata(project_id: str) -> Optional[Dict[str, Any]]:
         ).fetchone()
         if not r:
             return None
+
+        proj_client = r[1] or "public"
+        source_type = r[3]
+        if (
+            client_id
+            and client_id != "public"
+            and source_type != "demo"
+            and proj_client not in (client_id, "public")
+        ):
+            return None
+
         return {
             "id": r[0],
-            "name": r[1],
-            "source_type": r[2],
-            "table_name": r[3],
-            "columns_meta": json.loads(r[4]) if isinstance(r[4], str) else r[4],
-            "chart_config": json.loads(r[5]) if isinstance(r[5], str) else r[5],
-            "highlights": json.loads(r[6]) if isinstance(r[6], str) else r[6],
-            "created_at": str(r[7]),
-            "updated_at": str(r[8]),
+            "client_id": proj_client,
+            "name": r[2],
+            "source_type": source_type,
+            "table_name": r[4],
+            "columns_meta": json.loads(r[5]) if isinstance(r[5], str) else r[5],
+            "chart_config": json.loads(r[6]) if isinstance(r[6], str) else r[6],
+            "highlights": json.loads(r[7]) if isinstance(r[7], str) else r[7],
+            "created_at": str(r[8]),
+            "updated_at": str(r[9]),
         }
 
 
-def query_project_data(project_id: str, filters: QueryFilterPayload) -> Dict[str, Any]:
-    meta = get_project_metadata(project_id)
+def query_project_data(
+    project_id: str,
+    filters: QueryFilterPayload,
+    client_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    meta = get_project_metadata(project_id, client_id=client_id)
     if not meta:
-        raise ValueError(f"Projeto '{project_id}' não encontrado.")
+        raise ValueError(f"Projeto '{project_id}' não encontrado ou sem permissão.")
 
     table_name = meta["table_name"]
     columns_meta = meta["columns_meta"]
@@ -100,29 +136,33 @@ def query_project_data(project_id: str, filters: QueryFilterPayload) -> Dict[str
 
     if filters.search and filters.search.strip():
         q = f"%{filters.search.strip().lower()}%"
-        or_parts = [f"LOWER(CAST(\"{col}\" AS VARCHAR)) LIKE ?" for col in valid_cols.keys()]
+        or_parts = [
+            f'LOWER(CAST("{col}" AS VARCHAR)) LIKE ?' for col in valid_cols.keys()
+        ]
         if or_parts:
             where_clauses.append("(" + " OR ".join(or_parts) + ")")
             params.extend([q] * len(or_parts))
 
     if x_col and x_col in valid_cols:
         if filters.dateFrom and filters.dateFrom.strip():
-            where_clauses.append(f"CAST(\"{x_col}\" AS VARCHAR) >= ?")
+            where_clauses.append(f'CAST("{x_col}" AS VARCHAR) >= ?')
             params.append(filters.dateFrom.strip())
         if filters.dateTo and filters.dateTo.strip():
-            where_clauses.append(f"CAST(\"{x_col}\" AS VARCHAR) <= ?")
+            where_clauses.append(f'CAST("{x_col}" AS VARCHAR) <= ?')
             params.append(filters.dateTo.strip())
 
     if y_col and y_col in valid_cols:
         if filters.minVal is not None:
-            where_clauses.append(f"TRY_CAST(\"{y_col}\" AS DOUBLE) >= ?")
+            where_clauses.append(f'TRY_CAST("{y_col}" AS DOUBLE) >= ?')
             params.append(float(filters.minVal))
         if filters.maxVal is not None:
-            where_clauses.append(f"TRY_CAST(\"{y_col}\" AS DOUBLE) <= ?")
+            where_clauses.append(f'TRY_CAST("{y_col}" AS DOUBLE) <= ?')
             params.append(float(filters.maxVal))
 
     sort_col = "_row_id"
-    if filters.sortBy and (filters.sortBy in valid_cols or filters.sortBy == "_row_id"):
+    if filters.sortBy and (
+        filters.sortBy in valid_cols or filters.sortBy == "_row_id"
+    ):
         sort_col = f'"{filters.sortBy}"'
     sort_dir = "DESC" if str(filters.sortDir).lower() == "desc" else "ASC"
 
@@ -156,8 +196,9 @@ def update_project_state(
     columns_meta: Optional[List[Dict[str, Any]]] = None,
     chart_config: Optional[Dict[str, Any]] = None,
     highlights: Optional[Dict[str, Any]] = None,
+    client_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    meta = get_project_metadata(project_id)
+    meta = get_project_metadata(project_id, client_id=client_id)
     if not meta:
         raise ValueError(f"Projeto '{project_id}' não encontrado.")
 
@@ -184,15 +225,31 @@ def update_project_state(
             ],
         )
 
-    return get_project_metadata(project_id)  # type: ignore
+    return get_project_metadata(project_id, client_id=client_id)  # type: ignore
+
+
+def delete_project(project_id: str, client_id: Optional[str] = None) -> Dict[str, Any]:
+    meta = get_project_metadata(project_id, client_id=client_id)
+    if not meta:
+        raise ValueError(f"Projeto '{project_id}' não encontrado.")
+    if meta["source_type"] == "demo":
+        raise ValueError("A base de demonstração padrão não pode ser removida.")
+
+    table_name = meta["table_name"]
+    with get_db_connection() as conn:
+        conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+        conn.execute("DELETE FROM projects WHERE id = ?", [project_id])
+
+    return {"id": project_id, "deleted": True}
 
 
 def add_row_to_project(
     project_id: str,
     values: Dict[str, Any],
     highlight: Optional[Dict[str, Any]] = None,
+    client_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    meta = get_project_metadata(project_id)
+    meta = get_project_metadata(project_id, client_id=client_id)
     if not meta:
         raise ValueError(f"Projeto '{project_id}' não encontrado.")
 
@@ -200,7 +257,9 @@ def add_row_to_project(
     columns_meta = meta["columns_meta"]
 
     with get_db_connection() as conn:
-        max_row = conn.execute(f"SELECT COALESCE(MAX(_row_id), 0) FROM {table_name}").fetchone()
+        max_row = conn.execute(
+            f"SELECT COALESCE(MAX(_row_id), 0) FROM {table_name}"
+        ).fetchone()
         next_row_id = int(max_row[0]) + 1 if max_row else 1
 
         col_identifiers = ["_row_id", "_active"]
@@ -213,7 +272,9 @@ def add_row_to_project(
             if c_type == "number":
                 parsed_v = try_parse_number(raw_v)
             elif c_type == "date":
-                parsed_v = try_parse_date_str(raw_v) or (str(raw_v).strip() if raw_v is not None else "")
+                parsed_v = try_parse_date_str(raw_v) or (
+                    str(raw_v).strip() if raw_v is not None else ""
+                )
             else:
                 parsed_v = str(raw_v).strip() if raw_v is not None else ""
             col_identifiers.append(f'"{c_name}"')
@@ -243,8 +304,9 @@ def update_row_in_project(
     row_id: int,
     active: Optional[bool] = None,
     values: Optional[Dict[str, Any]] = None,
+    client_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    meta = get_project_metadata(project_id)
+    meta = get_project_metadata(project_id, client_id=client_id)
     if not meta:
         raise ValueError(f"Projeto '{project_id}' não encontrado.")
 
@@ -265,7 +327,9 @@ def update_row_in_project(
                 if c_type == "number":
                     parsed_v = try_parse_number(raw_v)
                 elif c_type == "date":
-                    parsed_v = try_parse_date_str(raw_v) or (str(raw_v).strip() if raw_v is not None else "")
+                    parsed_v = try_parse_date_str(raw_v) or (
+                        str(raw_v).strip() if raw_v is not None else ""
+                    )
                 else:
                     parsed_v = str(raw_v).strip() if raw_v is not None else ""
                 updates.append(f'"{k}" = ?')
@@ -284,8 +348,12 @@ def update_row_in_project(
     return {"rowId": row_id, "updated": True}
 
 
-def delete_row_from_project(project_id: str, row_id: int) -> Dict[str, Any]:
-    meta = get_project_metadata(project_id)
+def delete_row_from_project(
+    project_id: str,
+    row_id: int,
+    client_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    meta = get_project_metadata(project_id, client_id=client_id)
     if not meta:
         raise ValueError(f"Projeto '{project_id}' não encontrado.")
 
@@ -302,4 +370,3 @@ def delete_row_from_project(project_id: str, row_id: int) -> Dict[str, Any]:
         )
 
     return {"rowId": row_id, "deleted": True}
-

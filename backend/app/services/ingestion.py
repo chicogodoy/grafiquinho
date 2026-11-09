@@ -249,6 +249,7 @@ def save_dataframe_as_project(
     df: pd.DataFrame,
     name: str,
     source_type: str,
+    client_id: str = "public",
 ) -> Dict[str, Any]:
     clean_df, columns_meta = normalize_dataframe(df)
     project_id = f"proj-{uuid.uuid4().hex[:10]}"
@@ -292,11 +293,12 @@ def save_dataframe_as_project(
 
         conn.execute(
             """
-            INSERT INTO projects (id, name, source_type, table_name, columns_meta, chart_config, highlights, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO projects (id, client_id, name, source_type, table_name, columns_meta, chart_config, highlights, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 project_id,
+                client_id,
                 name,
                 source_type,
                 table_name,
@@ -310,6 +312,7 @@ def save_dataframe_as_project(
 
     return {
         "id": project_id,
+        "client_id": client_id,
         "name": name,
         "source_type": source_type,
         "table_name": table_name,
@@ -320,7 +323,11 @@ def save_dataframe_as_project(
     }
 
 
-def parse_csv_bytes(file_bytes: bytes, filename: str) -> Dict[str, Any]:
+def parse_csv_bytes(
+    file_bytes: bytes,
+    filename: str,
+    client_id: str = "public",
+) -> Dict[str, Any]:
     text = None
     for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
         try:
@@ -336,6 +343,7 @@ def parse_csv_bytes(file_bytes: bytes, filename: str) -> Dict[str, Any]:
         name=filename.rsplit(".", 1)[0] or "Upload CSV",
         source_type="csv",
         has_header=True,
+        client_id=client_id,
     )
 
 
@@ -344,6 +352,7 @@ def parse_delimited_text(
     name: str,
     source_type: str = "paste",
     has_header: bool = True,
+    client_id: str = "public",
 ) -> Dict[str, Any]:
     lines = [line for line in raw_text.splitlines() if line.strip()]
     if not lines:
@@ -382,7 +391,12 @@ def parse_delimited_text(
         data_rows = normalized_rows
 
     df = pd.DataFrame(data_rows, columns=headers)
-    return save_dataframe_as_project(df=df, name=name, source_type=source_type)
+    return save_dataframe_as_project(
+        df=df,
+        name=name,
+        source_type=source_type,
+        client_id=client_id,
+    )
 
 
 def create_manual_dataset(
@@ -391,8 +405,14 @@ def create_manual_dataset(
     y_col: str,
     label_col: str,
     rows: List[Dict[str, Any]],
+    client_id: str = "public",
 ) -> Dict[str, Any]:
     if not rows:
         raise ValueError("Insira ao menos um ponto de dado.")
     df = pd.DataFrame(rows)
-    return save_dataframe_as_project(df=df, name=name, source_type="manual")
+    return save_dataframe_as_project(
+        df=df,
+        name=name,
+        source_type="manual",
+        client_id=client_id,
+    )

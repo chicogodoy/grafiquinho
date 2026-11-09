@@ -20,6 +20,35 @@ function getApiBase(): string {
   return "/api";
 }
 
+const CLIENT_ID_STORAGE_KEY = "grafiquinho_client_id";
+
+export function getClientId(): string {
+  if (typeof window === "undefined") return "server";
+  try {
+    let cid = window.localStorage.getItem(CLIENT_ID_STORAGE_KEY);
+    if (!cid) {
+      cid =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? `cli-${crypto.randomUUID()}`
+          : `cli-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
+      window.localStorage.setItem(CLIENT_ID_STORAGE_KEY, cid);
+    }
+    return cid;
+  } catch {
+    return "anon";
+  }
+}
+
+function getHeaders(json = true): Record<string, string> {
+  const headers: Record<string, string> = {
+    "X-Client-ID": getClientId(),
+  };
+  if (json) {
+    headers["Content-Type"] = "application/json";
+  }
+  return headers;
+}
+
 export interface QueryProjectResponse {
   project: ProjectMeta;
   total_rows: number;
@@ -28,7 +57,10 @@ export interface QueryProjectResponse {
 }
 
 export async function fetchProjects(): Promise<ProjectMeta[]> {
-  const res = await fetch(`${getApiBase()}/projects`, { cache: "no-store" });
+  const res = await fetch(`${getApiBase()}/projects`, {
+    cache: "no-store",
+    headers: getHeaders(false),
+  });
   if (!res.ok) throw new Error("Falha ao carregar projetos do DuckDB");
   const data = await res.json();
   return data.projects || [];
@@ -56,7 +88,7 @@ export async function queryProjectData(
 
   const res = await fetch(`${getApiBase()}/projects/${projectId}/query`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(true),
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -76,6 +108,7 @@ export async function uploadCsvDataset(
 
   const res = await fetch(`${getApiBase()}/projects/upload-csv`, {
     method: "POST",
+    headers: getHeaders(false),
     body: formData,
   });
   if (!res.ok) {
@@ -92,7 +125,7 @@ export async function ingestCopyPasteDataset(
 ): Promise<ProjectMeta> {
   const res = await fetch(`${getApiBase()}/projects/copy-paste`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(true),
     body: JSON.stringify({ name, rawText, hasHeader }),
   });
   if (!res.ok) {
@@ -108,7 +141,7 @@ export async function createManualDataset(
 ): Promise<ProjectMeta> {
   const res = await fetch(`${getApiBase()}/projects/manual`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(true),
     body: JSON.stringify({
       name,
       xColumnName: "data",
@@ -135,7 +168,7 @@ export async function saveProjectState(
 ): Promise<ProjectMeta> {
   const res = await fetch(`${getApiBase()}/projects/${projectId}/state`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(true),
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -145,6 +178,17 @@ export async function saveProjectState(
   return res.json();
 }
 
+export async function deleteProject(projectId: string): Promise<void> {
+  const res = await fetch(`${getApiBase()}/projects/${projectId}`, {
+    method: "DELETE",
+    headers: getHeaders(false),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Erro ao remover base");
+  }
+}
+
 export async function addProjectRow(
   projectId: string,
   values: Record<string, any>,
@@ -152,7 +196,7 @@ export async function addProjectRow(
 ): Promise<{ rowId: number }> {
   const res = await fetch(`${getApiBase()}/projects/${projectId}/rows`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(true),
     body: JSON.stringify({ values, highlight }),
   });
   if (!res.ok) {
@@ -169,7 +213,7 @@ export async function updateProjectRow(
 ): Promise<void> {
   const res = await fetch(`${getApiBase()}/projects/${projectId}/rows/${rowId}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(true),
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -184,10 +228,10 @@ export async function deleteProjectRow(
 ): Promise<void> {
   const res = await fetch(`${getApiBase()}/projects/${projectId}/rows/${rowId}`, {
     method: "DELETE",
+    headers: getHeaders(false),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "Erro ao excluir linha");
   }
 }
-

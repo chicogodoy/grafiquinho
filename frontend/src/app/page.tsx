@@ -14,6 +14,7 @@ import {
 import {
   addProjectRow,
   createManualDataset,
+  deleteProject,
   deleteProjectRow,
   fetchProjects,
   ingestCopyPasteDataset,
@@ -165,6 +166,31 @@ export default function HomePage() {
     setExcludedXGroups([]);
     await loadProjectWithFilters(projectId, DEFAULT_FILTERS);
     setIsLoading(false);
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    try {
+      setIsLoading(true);
+      await deleteProject(projectId);
+      const list = await fetchProjects();
+      setProjects(list);
+      if (list.length > 0) {
+        const first = list[0];
+        setFilters(DEFAULT_FILTERS);
+        setColumnFilters({});
+        setExcludedXGroups([]);
+        await loadProjectWithFilters(
+          first.id,
+          DEFAULT_FILTERS,
+          first.chart_config.xColumn,
+          first.chart_config.yColumn
+        );
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleFiltersChange = async (nextFilters: QueryFilters) => {
@@ -501,6 +527,7 @@ export default function HomePage() {
           totalRows={totalRows}
           filteredRows={chartRows.length}
           onSelectProject={handleSelectProject}
+          onDeleteProject={handleDeleteProject}
           onUploadCsv={handleUploadCsv}
           onCopyPaste={handleCopyPaste}
           onCreateManualDataset={handleCreateManualDataset}

@@ -13,6 +13,8 @@ import {
   FileSpreadsheet,
   Table2,
   Eye,
+  Lock,
+  Trash2,
 } from "lucide-react";
 import { ColumnMeta, PointHighlight, ProjectMeta } from "@/types/chart";
 
@@ -22,6 +24,7 @@ interface DataIngestionPanelProps {
   totalRows: number;
   filteredRows: number;
   onSelectProject: (projectId: string) => void;
+  onDeleteProject: (projectId: string) => Promise<void>;
   onUploadCsv: (file: File, name?: string) => Promise<void>;
   onCopyPaste: (name: string, rawText: string, hasHeader: boolean) => Promise<void>;
   onCreateManualDataset: (name: string, rows: Record<string, any>[]) => Promise<void>;
@@ -81,6 +84,7 @@ export default function DataIngestionPanel({
   totalRows,
   filteredRows,
   onSelectProject,
+  onDeleteProject,
   onUploadCsv,
   onCopyPaste,
   onCreateManualDataset,
@@ -224,6 +228,25 @@ export default function DataIngestionPanel({
               <span className="text-xs font-semibold uppercase tracking-wider text-blue-400">
                 1. Entrada de Dados (DuckDB Local)
               </span>
+              {activeProject && (
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                    activeProject.source_type === "demo"
+                      ? "bg-slate-800 text-slate-300 border border-slate-700"
+                      : "bg-emerald-950/90 text-emerald-300 border border-emerald-700/70"
+                  }`}
+                  title={
+                    activeProject.source_type === "demo"
+                      ? "Base de demonstração inicial"
+                      : "Esta base é isolada e visível apenas neste navegador"
+                  }
+                >
+                  <Lock className="w-2.5 h-2.5" />
+                  {activeProject.source_type === "demo"
+                    ? "Exemplo Inicial"
+                    : "Privada neste navegador"}
+                </span>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2 mt-0.5">
               <label htmlFor="project-select" className="text-xs text-slate-300">
@@ -237,7 +260,7 @@ export default function DataIngestionPanel({
               >
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} ({p.source_type.toUpperCase()})
+                    {p.name} ({p.source_type === "demo" ? "DEMO" : "PRIVADA"})
                   </option>
                 ))}
               </select>
@@ -251,6 +274,18 @@ export default function DataIngestionPanel({
                 <Table2 className="w-3.5 h-3.5" />
                 Pré-visualizar Base ({filteredRows}/{totalRows} linhas)
               </button>
+
+              {activeProject && activeProject.source_type !== "demo" && (
+                <button
+                  type="button"
+                  onClick={() => onDeleteProject(activeProject.id)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-800/70 text-xs font-medium transition-colors cursor-pointer"
+                  title="Excluir esta base permanentemente do servidor"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Excluir Base
+                </button>
+              )}
             </div>
           </div>
         </div>
