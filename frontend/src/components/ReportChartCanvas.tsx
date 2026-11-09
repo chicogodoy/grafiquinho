@@ -7,6 +7,11 @@ import {
   Sparkles,
   MousePointerClick,
   CheckCircle2,
+  BarChart3,
+  BarChartHorizontal,
+  TrendingUp,
+  Percent,
+  ArrowDownWideNarrow,
 } from "lucide-react";
 import GrafiquinhoLogo from "@/components/GrafiquinhoLogo";
 import { ChartConfig, ColumnMeta, PointHighlight } from "@/types/chart";
@@ -22,6 +27,7 @@ interface ReportChartCanvasProps {
   rows: Record<string, any>[];
   highlights: Record<string, PointHighlight>;
   onSelectPoint: (row: Record<string, any>) => void;
+  onChangeConfig?: (patch: Partial<ChartConfig>) => void;
 }
 
 interface PlottedPoint {
@@ -97,6 +103,7 @@ export default function ReportChartCanvas({
   rows,
   highlights,
   onSelectPoint,
+  onChangeConfig,
 }: ReportChartCanvasProps) {
   const reportCardRef = useRef<HTMLDivElement | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -605,15 +612,116 @@ export default function ReportChartCanvas({
   return (
     <div className="flex flex-col gap-3">
       {/* Action Toolbar Above the Report Canvas */}
-      <div className="bg-white rounded-2xl border border-slate-200 px-5 py-3 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 text-xs text-slate-600">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-semibold">
-            <MousePointerClick className="w-3.5 h-3.5" />
-            Gráfico Interativo ({plottedPoints.length} pontos no eixo X)
-          </span>
-          <span>
-            Clique em qualquer ponto do gráfico abaixo para adicionar um destaque pontual com cor e rótulo exclusivo.
-          </span>
+      <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 shadow-xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Quick 1-Click Chart Type Switcher right above the chart */}
+          {onChangeConfig && (
+            <div className="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => onChangeConfig({ chartType: "area" })}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  chartConfig.chartType === "area"
+                    ? "bg-blue-600 text-white shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/70"
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                Área
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeConfig({ chartType: "line" })}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  chartConfig.chartType === "line"
+                    ? "bg-blue-600 text-white shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/70"
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                Linha
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeConfig({ chartType: "bar" })}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  chartConfig.chartType === "bar"
+                    ? "bg-blue-600 text-white shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/70"
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                Barras Verticais
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeConfig({ chartType: "bar_horizontal" })}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  chartConfig.chartType === "bar_horizontal"
+                    ? "bg-blue-600 text-white shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/70"
+                }`}
+              >
+                <BarChartHorizontal className="w-3.5 h-3.5" />
+                Barras Horizontais
+              </button>
+            </div>
+          )}
+
+          {/* Quick Proportional & Sorting Controls */}
+          {onChangeConfig && (
+            <div className="inline-flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() =>
+                  onChangeConfig({
+                    valueMode:
+                      chartConfig.valueMode === "percent_of_total"
+                        ? "both_label"
+                        : chartConfig.valueMode === "both_label"
+                        ? "absolute"
+                        : "percent_of_total",
+                  })
+                }
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                  (chartConfig.valueMode || "absolute") !== "absolute"
+                    ? "bg-violet-50 text-violet-700 border-violet-300"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                }`}
+                title="Alternar entre Valor Absoluto, % do Total (100%) e Absoluto + %"
+              >
+                <Percent className="w-3.5 h-3.5" />
+                {chartConfig.valueMode === "percent_of_total"
+                  ? "Escala: % do Total"
+                  : chartConfig.valueMode === "both_label"
+                  ? "Valor + % no Rótulo"
+                  : "Ver em % Proporcional"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  onChangeConfig({
+                    categorySort:
+                      chartConfig.categorySort === "value_desc"
+                        ? "original"
+                        : "value_desc",
+                  })
+                }
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                  chartConfig.categorySort === "value_desc"
+                    ? "bg-amber-50 text-amber-800 border-amber-300"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                }`}
+                title="Ordenar categorias do maior para o menor valor"
+              >
+                <ArrowDownWideNarrow className="w-3.5 h-3.5" />
+                {chartConfig.categorySort === "value_desc"
+                  ? "Ordem: Maior → Menor"
+                  : "Ordenar Maior → Menor"}
+              </button>
+            </div>
+          )}
         </div>
 
         <button

@@ -584,6 +584,7 @@ export default function HomePage() {
                 rows={chartRows}
                 highlights={activeProject.highlights || {}}
                 onSelectPoint={(row) => setSelectedPointRow(row)}
+                onChangeConfig={handleChangeChartConfig}
               />
             </div>
           </section>

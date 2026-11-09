@@ -205,17 +205,22 @@ def build_default_chart_config(
         else (str_cols[0] if str_cols else columns_meta[0]["name"])
     )
 
+    is_categorical_x = x_col not in date_cols
+
     # Pick Y column & aggregation
     if num_cols:
         y_col = num_cols[0]
-        y_agg = "sum" if row_count > 50 else "none"
+        y_agg = "sum" if (row_count > 50 or is_categorical_x) else "none"
     else:
-        # No numeric metric column (e.g. event log): count rows or distinct IDs!
+        # No numeric metric column (e.g. event log or categorical list): count rows!
         y_col = id_cols[0] if id_cols else x_col
         y_agg = "count"
 
     x_grouping = "day" if (x_col in date_cols and row_count > 30) else "raw"
     sec_y_col = num_cols[1] if len(num_cols) > 1 else ""
+    default_chart_type = "bar" if is_categorical_x else "area"
+    default_value_mode = "both_label" if is_categorical_x else "absolute"
+    default_sort = "value_desc" if is_categorical_x else "original"
 
     # Only pick a label column automatically if it's a short note/label column and row_count <= 50
     label_col = ""
@@ -231,12 +236,14 @@ def build_default_chart_config(
         title=name,
         subtitle="Visualização analítica e destaques pontuais",
         footer="Fonte: Base Analítica Local (DuckDB)",
-        chartType="area",
+        chartType=default_chart_type,
         curveType="smooth",
         xColumn=x_col,
         xGrouping=x_grouping,
         yColumn=y_col,
         yAggregation=y_agg,
+        valueMode=default_value_mode,
+        categorySort=default_sort,
         secondaryYColumn=sec_y_col,
         labelColumn=label_col,
         valueFormat="number",
