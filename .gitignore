@@ -1,0 +1,24 @@
+# Dependencies
+**/node_modules/
+backend/.venv/
+.venv/
+
+# Next.js build output
+frontend/.next/
+frontend/out/
+
+# Python cache
+**/__pycache__/
+**/*.py[cod]
+*$py.class
+
+# Local DuckDB database files
+backend/data/*.duckdb*
+*.duckdb
+*.duckdb.wal
+
+# Environment & OS
+.env
+.env*.local
+.DS_Store
+.vercel
