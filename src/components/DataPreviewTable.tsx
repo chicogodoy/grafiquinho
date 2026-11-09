@@ -279,9 +279,28 @@ export default function DataPreviewTable({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Chart Type Quick Selector */}
+          <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-indigo-200 text-xs shadow-2xs">
+            <span className="text-slate-500 font-medium">Formato:</span>
+            <select
+              value={chartConfig.chartType || "area"}
+              onChange={(e) =>
+                onChangeChartConfig({
+                  chartType: e.target.value as ChartConfig["chartType"],
+                })
+              }
+              className="font-bold text-indigo-700 bg-transparent focus:outline-none"
+            >
+              <option value="area">Área c/ Gradiente</option>
+              <option value="line">Linha Pura</option>
+              <option value="bar">Barras Verticais (Colunas)</option>
+              <option value="bar_horizontal">Barras Horizontais (Ranking)</option>
+            </select>
+          </div>
+
           {/* X Axis Column */}
           <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-indigo-200 text-xs shadow-2xs">
-            <span className="text-slate-500 font-medium">Eixo X:</span>
+            <span className="text-slate-500 font-medium">Eixo X / Categoria:</span>
             <select
               value={chartConfig.xColumn}
               onChange={(e) => onChangeChartConfig({ xColumn: e.target.value })}
@@ -307,7 +326,7 @@ export default function DataPreviewTable({
               }
               className="font-bold text-indigo-700 bg-transparent focus:outline-none"
             >
-              <option value="raw">Valor Exato</option>
+              <option value="raw">Valor / Categoria Exata</option>
               <option value="day">Por Dia (AAAA-MM-DD)</option>
               <option value="hour">Por Hora (AAAA-MM-DD HH:00)</option>
               <option value="month">Por Mês (AAAA-MM)</option>
@@ -326,13 +345,50 @@ export default function DataPreviewTable({
               }
               className="font-bold text-emerald-700 bg-transparent focus:outline-none"
             >
-              <option value="none">Valor Direto da Linha</option>
+              <option value="none">Valor Direto / Automático</option>
               <option value="count">Contagem de Linhas (COUNT)</option>
               <option value="count_distinct">
                 Contagem Única / Distinta (COUNT DISTINCT)
               </option>
-              <option value="sum">Soma (SUM)</option>
-              <option value="avg">Média (AVG)</option>
+              <option value="sum">Soma por Categoria (SUM)</option>
+              <option value="avg">Média por Categoria (AVG)</option>
+            </select>
+          </div>
+
+          {/* Proportional / Share Mode */}
+          <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-indigo-200 text-xs shadow-2xs">
+            <span className="text-slate-500 font-medium">Proporção:</span>
+            <select
+              value={chartConfig.valueMode || "absolute"}
+              onChange={(e) =>
+                onChangeChartConfig({
+                  valueMode: e.target.value as ChartConfig["valueMode"],
+                })
+              }
+              className="font-bold text-violet-700 bg-transparent focus:outline-none"
+            >
+              <option value="absolute">Valor Absoluto</option>
+              <option value="percent_of_total">% do Total (100%)</option>
+              <option value="both_label">Absoluto + % no Rótulo</option>
+            </select>
+          </div>
+
+          {/* Category Sorting */}
+          <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-indigo-200 text-xs shadow-2xs">
+            <span className="text-slate-500 font-medium">Ordem:</span>
+            <select
+              value={chartConfig.categorySort || "original"}
+              onChange={(e) =>
+                onChangeChartConfig({
+                  categorySort: e.target.value as ChartConfig["categorySort"],
+                })
+              }
+              className="font-bold text-slate-700 bg-transparent focus:outline-none"
+            >
+              <option value="original">Ordem da Base / Data</option>
+              <option value="value_desc">Maior → Menor</option>
+              <option value="value_asc">Menor → Maior</option>
+              <option value="alpha">Alfabética (A → Z)</option>
             </select>
           </div>
 

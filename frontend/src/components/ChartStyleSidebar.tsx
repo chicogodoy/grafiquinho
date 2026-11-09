@@ -284,27 +284,73 @@ export default function ChartStyleSidebar({
                 >
                   Linha Pura
                 </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeConfig({ chartType: "bar" })}
+                  className={`py-2 px-3 rounded-xl border font-semibold transition-all ${
+                    chartConfig.chartType === "bar"
+                      ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  Barras Verticais
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeConfig({ chartType: "bar_horizontal" })}
+                  className={`py-2 px-3 rounded-xl border font-semibold transition-all ${
+                    chartConfig.chartType === "bar_horizontal"
+                      ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  Barras Horizontais
+                </button>
               </div>
             </div>
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1.5">
-                Traçado da Curva
+                Análise Proporcional / Escala
               </label>
-              <div className="grid grid-cols-3 gap-1.5">
+              <select
+                value={chartConfig.valueMode || "absolute"}
+                onChange={(e) =>
+                  onChangeConfig({
+                    valueMode: e.target.value as ChartConfig["valueMode"],
+                  })
+                }
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold text-slate-800"
+              >
+                <option value="absolute">Valor Absoluto</option>
+                <option value="percent_of_total">
+                  Proporção do Total (% de Participação)
+                </option>
+                <option value="both_label">
+                  Valor Absoluto + % de Participação no Rótulo
+                </option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1.5">
+                Ordenação das Categorias / Barras
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
                 {(
                   [
-                    { id: "smooth", label: "Suave" },
-                    { id: "linear", label: "Reto" },
-                    { id: "step", label: "Degrau" },
+                    { id: "original", label: "Ordem da Base" },
+                    { id: "value_desc", label: "Maior → Menor" },
+                    { id: "value_asc", label: "Menor → Maior" },
+                    { id: "alpha", label: "Alfabética (A→Z)" },
                   ] as const
                 ).map((item) => (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => onChangeConfig({ curveType: item.id })}
+                    onClick={() => onChangeConfig({ categorySort: item.id })}
                     className={`py-1.5 px-2 rounded-lg border font-medium ${
-                      chartConfig.curveType === item.id
+                      (chartConfig.categorySort || "original") === item.id
                         ? "bg-slate-900 text-white border-slate-900"
                         : "bg-white text-slate-700 border-slate-200"
                     }`}
@@ -315,47 +361,82 @@ export default function ChartStyleSidebar({
               </div>
             </div>
 
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="font-semibold text-slate-700">
-                  Espessura da Linha
-                </span>
-                <span className="font-bold text-slate-800">
-                  {chartConfig.lineWidth} px
-                </span>
-              </div>
-              <input
-                type="range"
-                min={1}
-                max={7}
-                value={chartConfig.lineWidth}
-                onChange={(e) =>
-                  onChangeConfig({ lineWidth: Number(e.target.value) })
-                }
-                className="w-full accent-blue-600"
-              />
-            </div>
+            {(chartConfig.chartType === "line" ||
+              chartConfig.chartType === "area") && (
+              <>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Traçado da Curva
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(
+                      [
+                        { id: "smooth", label: "Suave" },
+                        { id: "linear", label: "Reto" },
+                        { id: "step", label: "Degrau" },
+                      ] as const
+                    ).map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => onChangeConfig({ curveType: item.id })}
+                        className={`py-1.5 px-2 rounded-lg border font-medium ${
+                          chartConfig.curveType === item.id
+                            ? "bg-slate-900 text-white border-slate-900"
+                            : "bg-white text-slate-700 border-slate-200"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="font-semibold text-slate-700">
-                  Tamanho Padrão dos Pontos
-                </span>
-                <span className="font-bold text-slate-800">
-                  {chartConfig.defaultPointSize} px
-                </span>
-              </div>
-              <input
-                type="range"
-                min={3}
-                max={12}
-                value={chartConfig.defaultPointSize}
-                onChange={(e) =>
-                  onChangeConfig({ defaultPointSize: Number(e.target.value) })
-                }
-                className="w-full accent-blue-600"
-              />
-            </div>
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span className="font-semibold text-slate-700">
+                      Espessura da Linha
+                    </span>
+                    <span className="font-bold text-slate-800">
+                      {chartConfig.lineWidth} px
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={1}
+                    max={7}
+                    value={chartConfig.lineWidth}
+                    onChange={(e) =>
+                      onChangeConfig({ lineWidth: Number(e.target.value) })
+                    }
+                    className="w-full accent-blue-600"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span className="font-semibold text-slate-700">
+                      Tamanho Padrão dos Pontos
+                    </span>
+                    <span className="font-bold text-slate-800">
+                      {chartConfig.defaultPointSize} px
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={3}
+                    max={12}
+                    value={chartConfig.defaultPointSize}
+                    onChange={(e) =>
+                      onChangeConfig({
+                        defaultPointSize: Number(e.target.value),
+                      })
+                    }
+                    className="w-full accent-blue-600"
+                  />
+                </div>
+              </>
+            )}
 
             {chartConfig.chartType === "area" && (
               <div>

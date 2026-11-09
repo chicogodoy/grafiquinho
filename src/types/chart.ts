@@ -20,12 +20,14 @@ export interface ChartConfig {
   title: string;
   subtitle: string;
   footer: string;
-  chartType: "line" | "area";
+  chartType: "line" | "area" | "bar" | "bar_horizontal";
   curveType: "smooth" | "linear" | "step";
   xColumn: string;
   xGrouping?: "raw" | "day" | "hour" | "month";
   yColumn: string;
   yAggregation?: "none" | "count" | "count_distinct" | "sum" | "avg";
+  valueMode?: "absolute" | "percent_of_total" | "both_label";
+  categorySort?: "original" | "value_desc" | "value_asc" | "alpha";
   secondaryYColumn?: string;
   labelColumn?: string;
   theme: string;

@@ -34,9 +34,13 @@ interface PlottedPoint {
   secondaryY: number | null;
   rawX: any;
   rawY: number;
+  plotY: number;
+  sharePct: number;
   rawSecondaryY: number | null;
   formattedX: string;
   formattedY: string;
+  formattedAbsY: string;
+  formattedShare: string;
   rowLabel: string;
   highlight?: PointHighlight;
 }
@@ -100,10 +104,14 @@ export default function ReportChartCanvas({
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
   const yColMeta = columnsMeta.find((c) => c.name === chartConfig.yColumn);
+  const xColMeta = columnsMeta.find((c) => c.name === chartConfig.xColumn);
+  const isBarMode =
+    chartConfig.chartType === "bar" ||
+    chartConfig.chartType === "bar_horizontal";
 
   // Determine effective aggregation mode:
-  // If user selected 'none' but the Y column is non-numeric (or ID) or there are >200 rows,
-  // allow grouping or counting if values aren't numbers.
+  // If user selected 'none' but the Y column is non-numeric (or ID), or X has repeated categorical values in bar mode,
+  // allow grouping or counting automatically.
   const effectiveAgg = useMemo(() => {
     const explicit = chartConfig.yAggregation || "none";
     if (explicit !== "none") return explicit;
@@ -113,13 +121,40 @@ export default function ReportChartCanvas({
     if ((chartConfig.xGrouping || "raw") !== "raw") {
       return "sum";
     }
+    if (isBarMode || (xColMeta && xColMeta.dtype === "string")) {
+      const active = rows.filter((r) => r._active !== false);
+      const uniqueX = new Set(
+        active.map((r) => String(r[chartConfig.xColumn] ?? ""))
+      );
+      if (active.length > uniqueX.size && uniqueX.size > 0) {
+        return "sum";
+      }
+    }
     return "none";
-  }, [chartConfig.yAggregation, chartConfig.xGrouping, yColMeta]);
+  }, [
+    chartConfig.yAggregation,
+    chartConfig.xGrouping,
+    chartConfig.xColumn,
+    yColMeta,
+    xColMeta,
+    isBarMode,
+    rows,
+  ]);
 
-  // Build series items (either row-by-row or aggregated by X group)
+  // Build series items (either row-by-row or aggregated by X group) and apply category sorting
   const seriesItems = useMemo(() => {
     const active = rows.filter((r) => r._active !== false);
     if (active.length === 0) return [];
+
+    let rawItems: Array<{
+      row: Record<string, any>;
+      rowId: number;
+      pointKey: string;
+      rawX: any;
+      rawY: number;
+      rawSecondaryY: number | null;
+      rowLabel: string;
+    }> = [];
 
     if (effectiveAgg === "none") {
       const valid = active.filter((r) => {
@@ -129,7 +164,7 @@ export default function ReportChartCanvas({
         );
       });
 
-      return valid.slice(0, 250).map((row) => {
+      rawItems = valid.slice(0, 250).map((row) => {
         const rid = Number(row._row_id);
         const rawX = row[chartConfig.xColumn];
         const rawY = Number(row[chartConfig.yColumn]);
@@ -156,119 +191,134 @@ export default function ReportChartCanvas({
           rowLabel,
         };
       });
-    }
-
-    // Aggregated by X (count, count_distinct, sum, avg)
-    const groups = new Map<
-      string,
-      {
-        firstRow: Record<string, any>;
-        count: number;
-        distinctSet: Set<string>;
-        sumY: number;
-        numCountY: number;
-        sumSecY: number;
-        numCountSecY: number;
-        labels: string[];
-      }
-    >();
-
-    const secCol = chartConfig.secondaryYColumn;
-    const lblCol = chartConfig.labelColumn;
-
-    active.forEach((row) => {
-      const gKey = extractGroupedXKey(
-        row[chartConfig.xColumn],
-        chartConfig.xGrouping || "raw"
-      );
-      let entry = groups.get(gKey);
-      if (!entry) {
-        entry = {
-          firstRow: row,
-          count: 0,
-          distinctSet: new Set<string>(),
-          sumY: 0,
-          numCountY: 0,
-          sumSecY: 0,
-          numCountSecY: 0,
-          labels: [],
-        };
-        groups.set(gKey, entry);
-      }
-
-      entry.count += 1;
-      const yVal = row[chartConfig.yColumn];
-      if (yVal !== null && yVal !== undefined && String(yVal).trim() !== "") {
-        entry.distinctSet.add(String(yVal));
-        const numY = Number(yVal);
-        if (!Number.isNaN(numY)) {
-          entry.sumY += numY;
-          entry.numCountY += 1;
+    } else {
+      // Aggregated by X (count, count_distinct, sum, avg)
+      const groups = new Map<
+        string,
+        {
+          firstRow: Record<string, any>;
+          count: number;
+          distinctSet: Set<string>;
+          sumY: number;
+          numCountY: number;
+          sumSecY: number;
+          numCountSecY: number;
+          labels: string[];
         }
-      }
+      >();
 
-      if (secCol) {
-        const sVal = row[secCol];
-        if (sVal !== null && sVal !== undefined && sVal !== "") {
-          const numS = Number(sVal);
-          if (!Number.isNaN(numS)) {
-            entry.sumSecY += numS;
-            entry.numCountSecY += 1;
+      const secCol = chartConfig.secondaryYColumn;
+      const lblCol = chartConfig.labelColumn;
+
+      active.forEach((row) => {
+        const gKey = extractGroupedXKey(
+          row[chartConfig.xColumn],
+          chartConfig.xGrouping || "raw"
+        );
+        let entry = groups.get(gKey);
+        if (!entry) {
+          entry = {
+            firstRow: row,
+            count: 0,
+            distinctSet: new Set<string>(),
+            sumY: 0,
+            numCountY: 0,
+            sumSecY: 0,
+            numCountSecY: 0,
+            labels: [],
+          };
+          groups.set(gKey, entry);
+        }
+
+        entry.count += 1;
+        const yVal = row[chartConfig.yColumn];
+        if (yVal !== null && yVal !== undefined && String(yVal).trim() !== "") {
+          entry.distinctSet.add(String(yVal));
+          const numY = Number(yVal);
+          if (!Number.isNaN(numY)) {
+            entry.sumY += numY;
+            entry.numCountY += 1;
           }
         }
-      }
 
-      if (lblCol) {
-        const lVal = String(row[lblCol] || "").trim();
-        if (lVal && entry.labels.length < 2 && !entry.labels.includes(lVal)) {
-          entry.labels.push(lVal);
+        if (secCol) {
+          const sVal = row[secCol];
+          if (sVal !== null && sVal !== undefined && sVal !== "") {
+            const numS = Number(sVal);
+            if (!Number.isNaN(numS)) {
+              entry.sumSecY += numS;
+              entry.numCountSecY += 1;
+            }
+          }
         }
-      }
-    });
 
-    const entries = Array.from(groups.entries());
-    // Sort chronologically if keys look like ISO dates (YYYY-MM...)
-    if (
-      entries.length > 1 &&
-      entries.every(([k]) => /^\d{4}-\d{2}/.test(k))
-    ) {
-      entries.sort((a, b) => a[0].localeCompare(b[0]));
+        if (lblCol) {
+          const lVal = String(row[lblCol] || "").trim();
+          if (lVal && entry.labels.length < 2 && !entry.labels.includes(lVal)) {
+            entry.labels.push(lVal);
+          }
+        }
+      });
+
+      const entries = Array.from(groups.entries());
+      // Sort chronologically by default if keys look like ISO dates (YYYY-MM...)
+      if (
+        entries.length > 1 &&
+        entries.every(([k]) => /^\d{4}-\d{2}/.test(k))
+      ) {
+        entries.sort((a, b) => a[0].localeCompare(b[0]));
+      }
+
+      rawItems = entries.slice(0, 200).map(([gKey, g], idx) => {
+        let computedY = 0;
+        if (effectiveAgg === "count") computedY = g.count;
+        else if (effectiveAgg === "count_distinct")
+          computedY = g.distinctSet.size;
+        else if (effectiveAgg === "sum") computedY = g.sumY;
+        else if (effectiveAgg === "avg")
+          computedY = g.numCountY > 0 ? g.sumY / g.numCountY : 0;
+
+        const computedSecY =
+          g.numCountSecY > 0
+            ? effectiveAgg === "avg"
+              ? g.sumSecY / g.numCountSecY
+              : g.sumSecY
+            : null;
+
+        const syntheticRow = {
+          ...g.firstRow,
+          _row_id: Number(g.firstRow._row_id) || idx + 1,
+          _point_key: gKey,
+          [chartConfig.xColumn]: gKey,
+          [chartConfig.yColumn]: computedY,
+        };
+
+        return {
+          row: syntheticRow,
+          rowId: Number(g.firstRow._row_id) || idx + 1,
+          pointKey: gKey,
+          rawX: gKey,
+          rawY: computedY,
+          rawSecondaryY: computedSecY,
+          rowLabel: g.labels.join(" / "),
+        };
+      });
     }
 
-    return entries.slice(0, 200).map(([gKey, g], idx) => {
-      let computedY = 0;
-      if (effectiveAgg === "count") computedY = g.count;
-      else if (effectiveAgg === "count_distinct")
-        computedY = g.distinctSet.size;
-      else if (effectiveAgg === "sum") computedY = g.sumY;
-      else if (effectiveAgg === "avg")
-        computedY = g.numCountY > 0 ? g.sumY / g.numCountY : 0;
+    const sortMode = chartConfig.categorySort || "original";
+    if (sortMode === "value_desc") {
+      rawItems = [...rawItems].sort((a, b) => b.rawY - a.rawY);
+    } else if (sortMode === "value_asc") {
+      rawItems = [...rawItems].sort((a, b) => a.rawY - b.rawY);
+    } else if (sortMode === "alpha") {
+      rawItems = [...rawItems].sort((a, b) =>
+        String(a.rawX ?? "").localeCompare(String(b.rawX ?? ""), "pt-BR", {
+          numeric: true,
+        })
+      );
+    }
 
-      const computedSecY =
-        g.numCountSecY > 0
-          ? effectiveAgg === "avg"
-            ? g.sumSecY / g.numCountSecY
-            : g.sumSecY
-          : null;
-
-      const syntheticRow = {
-        ...g.firstRow,
-        _row_id: Number(g.firstRow._row_id) || idx + 1,
-        _point_key: gKey,
-        [chartConfig.xColumn]: gKey,
-        [chartConfig.yColumn]: computedY,
-      };
-
-      return {
-        row: syntheticRow,
-        rowId: Number(g.firstRow._row_id) || idx + 1,
-        pointKey: gKey,
-        rawX: gKey,
-        rawY: computedY,
-        rawSecondaryY: computedSecY,
-        rowLabel: g.labels.join(" / "),
-      };
-    });
+    return rawItems;
   }, [
     rows,
     effectiveAgg,
@@ -277,19 +327,26 @@ export default function ReportChartCanvas({
     chartConfig.yColumn,
     chartConfig.secondaryYColumn,
     chartConfig.labelColumn,
+    chartConfig.categorySort,
   ]);
 
+  const isHorizontalBar = chartConfig.chartType === "bar_horizontal";
+  const valueMode = chartConfig.valueMode || "absolute";
+
   const svgWidth = 960;
-  const svgHeight =
+  const baseHeight =
     chartConfig.aspectRatio === "1:1"
       ? 620
       : chartConfig.aspectRatio === "4:3"
       ? 520
       : 430;
+  const svgHeight = isHorizontalBar
+    ? Math.max(baseHeight, 120 + seriesItems.length * 38)
+    : baseHeight;
 
-  const padLeft = 88;
-  const padRight = 46;
-  const padTop = 68;
+  const padLeft = isHorizontalBar ? 175 : 88;
+  const padRight = isHorizontalBar ? 135 : 46;
+  const padTop = isHorizontalBar ? 42 : 68;
   const padBottom = 56;
   const plotW = svgWidth - padLeft - padRight;
   const plotH = svgHeight - padTop - padBottom;
@@ -313,19 +370,44 @@ export default function ReportChartCanvas({
       };
     }
 
-    const yValues = seriesItems.map((item) => item.rawY);
-    const secValues = seriesItems
-      .map((item) => item.rawSecondaryY)
-      .filter((v): v is number => v !== null && !Number.isNaN(v));
+    const rawYValues = seriesItems.map((item) => item.rawY);
+    const totalAbs = rawYValues.reduce((acc, v) => acc + Math.max(0, v), 0);
+    const totalSigned = rawYValues.reduce((acc, v) => acc + v, 0);
 
-    const allNums = [...yValues, ...secValues];
+    const plotValues = seriesItems.map((item) =>
+      valueMode === "percent_of_total"
+        ? totalAbs > 0
+          ? (Math.max(0, item.rawY) / totalAbs) * 100
+          : 0
+        : item.rawY
+    );
+
+    const secValues =
+      valueMode === "percent_of_total"
+        ? []
+        : seriesItems
+            .map((item) => item.rawSecondaryY)
+            .filter((v): v is number => v !== null && !Number.isNaN(v));
+
+    const allNums = [...plotValues, ...secValues];
     const rawMin = Math.min(...allNums);
     const rawMax = Math.max(...allNums);
     const span = rawMax - rawMin || Math.abs(rawMax) * 0.2 || 10;
 
+    // For bar charts or percent_of_total, anchor minimum at 0 when values are >= 0
     const domainMin =
-      rawMin >= 0 ? Math.max(0, rawMin - span * 0.15) : rawMin - span * 0.15;
-    const domainMax = rawMax + span * 0.22;
+      isBarMode || valueMode === "percent_of_total"
+        ? rawMin >= 0
+          ? 0
+          : rawMin - span * 0.12
+        : rawMin >= 0
+        ? Math.max(0, rawMin - span * 0.15)
+        : rawMin - span * 0.15;
+
+    const domainMax =
+      valueMode === "percent_of_total"
+        ? Math.min(100, Math.max(20, rawMax * 1.18))
+        : rawMax + span * (isBarMode ? 0.18 : 0.22);
     const domainSpan = domainMax - domainMin || 1;
 
     const tickCount = 5;
@@ -335,20 +417,59 @@ export default function ReportChartCanvas({
     }
 
     const pts: PlottedPoint[] = seriesItems.map((item, idx) => {
-      const xRatio =
-        seriesItems.length === 1 ? 0.5 : idx / (seriesItems.length - 1);
-      const x = padLeft + xRatio * plotW;
-      const y =
-        padTop + plotH - ((item.rawY - domainMin) / domainSpan) * plotH;
+      const sharePct =
+        totalAbs > 0 ? (Math.max(0, item.rawY) / totalAbs) * 100 : 0;
+      const plotY =
+        valueMode === "percent_of_total" ? sharePct : item.rawY;
+
+      let x = 0;
+      let y = 0;
+      if (isHorizontalBar) {
+        const bandH = plotH / Math.max(1, seriesItems.length);
+        y = padTop + bandH * (idx + 0.5);
+        x =
+          padLeft +
+          Math.max(0, Math.min(1, (plotY - domainMin) / domainSpan)) * plotW;
+      } else if (chartConfig.chartType === "bar") {
+        const bandW = plotW / Math.max(1, seriesItems.length);
+        x = padLeft + bandW * (idx + 0.5);
+        y = padTop + plotH - ((plotY - domainMin) / domainSpan) * plotH;
+      } else {
+        const xRatio =
+          seriesItems.length === 1 ? 0.5 : idx / (seriesItems.length - 1);
+        x = padLeft + xRatio * plotW;
+        y = padTop + plotH - ((plotY - domainMin) / domainSpan) * plotH;
+      }
+
       const secondaryY =
-        item.rawSecondaryY !== null
-          ? padTop +
-            plotH -
-            ((item.rawSecondaryY - domainMin) / domainSpan) * plotH
+        item.rawSecondaryY !== null && valueMode !== "percent_of_total"
+          ? isHorizontalBar
+            ? padLeft +
+              Math.max(
+                0,
+                Math.min(1, (item.rawSecondaryY - domainMin) / domainSpan)
+              ) *
+                plotW
+            : padTop +
+              plotH -
+              ((item.rawSecondaryY - domainMin) / domainSpan) * plotH
           : null;
 
       const hl =
         highlights[item.pointKey] || highlights[String(item.rowId)];
+
+      const formattedAbsY = formatMetricValue(item.rawY, effectiveValueFormat);
+      const formattedShare = `${sharePct.toLocaleString("pt-BR", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })}%`;
+
+      let formattedY = formattedAbsY;
+      if (valueMode === "percent_of_total") {
+        formattedY = formattedShare;
+      } else if (valueMode === "both_label") {
+        formattedY = `${formattedAbsY} (${formattedShare})`;
+      }
 
       return {
         row: item.row,
@@ -360,21 +481,24 @@ export default function ReportChartCanvas({
         secondaryY,
         rawX: item.rawX,
         rawY: item.rawY,
+        plotY,
+        sharePct,
         rawSecondaryY: item.rawSecondaryY,
         formattedX: formatDateAxis(item.rawX, chartConfig.dateFormat),
-        formattedY: formatMetricValue(item.rawY, effectiveValueFormat),
+        formattedY,
+        formattedAbsY,
+        formattedShare,
         rowLabel: item.rowLabel,
         highlight: hl,
       };
     });
 
-    const total = yValues.reduce((acc, v) => acc + v, 0);
-    const avg = total / yValues.length;
-    const max = Math.max(...yValues);
-    const firstVal = yValues[0];
-    const lastVal = yValues[yValues.length - 1];
+    const avg = totalSigned / rawYValues.length;
+    const max = Math.max(...rawYValues);
+    const firstVal = rawYValues[0];
+    const lastVal = rawYValues[rawYValues.length - 1];
     const growthPct =
-      yValues.length > 1 && firstVal !== 0
+      rawYValues.length > 1 && firstVal !== 0
         ? ((lastVal - firstVal) / Math.abs(firstVal)) * 100
         : null;
 
@@ -383,11 +507,15 @@ export default function ReportChartCanvas({
       yTicks: ticks,
       minY: domainMin,
       maxY: domainMax,
-      stats: { total, avg, max, growthPct },
+      stats: { total: totalSigned, avg, max, growthPct },
     };
   }, [
     seriesItems,
     chartConfig.dateFormat,
+    chartConfig.chartType,
+    valueMode,
+    isBarMode,
+    isHorizontalBar,
     effectiveValueFormat,
     highlights,
     padLeft,
@@ -422,12 +550,26 @@ export default function ReportChartCanvas({
   }, [plottedPoints, chartConfig.curveType]);
 
   const rawYColLabel = yColMeta?.label || chartConfig.yColumn;
-  const yColLabel =
+  const baseColLabel =
     effectiveAgg === "count"
       ? "Quantidade de Registros"
       : effectiveAgg !== "none"
       ? `${AGG_LABELS[effectiveAgg]} de ${rawYColLabel}`
       : rawYColLabel;
+  const yColLabel =
+    valueMode === "percent_of_total"
+      ? `% de Participação (${baseColLabel})`
+      : valueMode === "both_label"
+      ? `${baseColLabel} (+ % do Total)`
+      : baseColLabel;
+
+  const formatAxisTick = (val: number) =>
+    valueMode === "percent_of_total"
+      ? `${val.toLocaleString("pt-BR", {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 1,
+        })}%`
+      : formatMetricValue(val, effectiveValueFormat);
 
   const secColLabel =
     columnsMeta.find((c) => c.name === chartConfig.secondaryYColumn)?.label ||
@@ -633,6 +775,25 @@ export default function ReportChartCanvas({
                     />
                   </linearGradient>
 
+                  <linearGradient
+                    id="primaryBarGradient"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="0%"
+                      stopColor={chartConfig.primaryColor}
+                      stopOpacity={0.96}
+                    />
+                    <stop
+                      offset="100%"
+                      stopColor={chartConfig.primaryColor}
+                      stopOpacity={0.72}
+                    />
+                  </linearGradient>
+
                   <filter
                     id="badgeShadow"
                     x="-20%"
@@ -650,313 +811,610 @@ export default function ReportChartCanvas({
                   </filter>
                 </defs>
 
-                {/* Horizontal Grid Lines & Y-Axis Labels */}
-                {yTicks.map((tickVal, idx) => {
-                  const yPos =
-                    padTop +
-                    plotH -
-                    ((tickVal - minY) / (maxY - minY || 1)) * plotH;
-                  return (
-                    <g key={idx}>
-                      {chartConfig.showGrid && (
-                        <line
-                          x1={padLeft}
-                          y1={yPos}
-                          x2={svgWidth - padRight}
-                          y2={yPos}
-                          stroke={chartConfig.gridColor}
-                          strokeWidth={1}
-                          strokeDasharray={idx === 0 ? undefined : "4 4"}
-                        />
-                      )}
-                      <text
-                        x={padLeft - 12}
-                        y={yPos + 4}
-                        textAnchor="end"
-                        fill={chartConfig.textColor}
-                        fillOpacity={0.65}
-                        fontSize={11}
-                        fontWeight={500}
-                      >
-                        {formatMetricValue(tickVal, effectiveValueFormat)}
-                      </text>
-                    </g>
-                  );
-                })}
+                {isHorizontalBar ? (
+                  <>
+                    {/* Vertical Grid Lines & Bottom X-Axis Scale for Horizontal Bars */}
+                    {yTicks.map((tickVal, idx) => {
+                      const xPos =
+                        padLeft +
+                        ((tickVal - minY) / (maxY - minY || 1)) * plotW;
+                      return (
+                        <g key={`htick-${idx}`}>
+                          {chartConfig.showGrid && (
+                            <line
+                              x1={xPos}
+                              y1={padTop}
+                              x2={xPos}
+                              y2={padTop + plotH}
+                              stroke={chartConfig.gridColor}
+                              strokeWidth={1}
+                              strokeDasharray={idx === 0 ? undefined : "4 4"}
+                            />
+                          )}
+                          <text
+                            x={xPos}
+                            y={padTop + plotH + 22}
+                            textAnchor="middle"
+                            fill={chartConfig.textColor}
+                            fillOpacity={0.65}
+                            fontSize={10.5}
+                            fontWeight={500}
+                          >
+                            {formatAxisTick(tickVal)}
+                          </text>
+                        </g>
+                      );
+                    })}
 
-                {/* Area Gradient Fill */}
-                {chartConfig.chartType === "area" &&
-                  areaPath &&
-                  plottedPoints.length > 1 && (
-                    <path d={areaPath} fill="url(#primaryAreaGradient)" />
-                  )}
+                    {/* Horizontal Categorical & Proportional Bars */}
+                    {plottedPoints.map((pt, idx) => {
+                      const hl = pt.highlight;
+                      const isHovered = hoveredKey === pt.pointKey;
+                      const bandH = plotH / Math.max(1, plottedPoints.length);
+                      const barH = Math.max(12, Math.min(28, bandH * 0.66));
+                      const barY = pt.y - barH / 2;
+                      const barW = Math.max(4, pt.x - padLeft);
+                      const barColor = hl ? hl.color : chartConfig.primaryColor;
 
-                {/* Secondary Y Line */}
-                {secondaryLinePath && (
-                  <path
-                    d={secondaryLinePath}
-                    fill="none"
-                    stroke={chartConfig.secondaryColor}
-                    strokeWidth={Math.max(2, chartConfig.lineWidth - 1)}
-                    strokeDasharray="6 6"
-                    strokeLinecap="round"
-                  />
-                )}
+                      const catLabel =
+                        pt.formattedX.length > 23
+                          ? `${pt.formattedX.slice(0, 21)}…`
+                          : pt.formattedX;
 
-                {/* Primary Line */}
-                {plottedPoints.length > 1 && (
-                  <path
-                    d={primaryLinePath}
-                    fill="none"
-                    stroke={chartConfig.primaryColor}
-                    strokeWidth={chartConfig.lineWidth}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                )}
+                      const defaultRightText =
+                        valueMode === "absolute"
+                          ? `${pt.formattedAbsY} (${pt.formattedShare})`
+                          : pt.formattedY;
 
-                {/* Vertical Guide Lines for Highlighted Points */}
-                {plottedPoints.map((pt) => {
-                  if (!pt.highlight) return null;
-                  return (
-                    <line
-                      key={`vline-${pt.pointKey}`}
-                      x1={pt.x}
-                      y1={pt.y}
-                      x2={pt.x}
-                      y2={padTop + plotH}
-                      stroke={pt.highlight.color}
-                      strokeWidth={1.5}
-                      strokeDasharray="3 3"
-                      strokeOpacity={0.65}
-                    />
-                  );
-                })}
+                      const badgeText = hl
+                        ? [
+                            hl.customLabel || pt.rowLabel,
+                            hl.showValue ? defaultRightText : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" • ") || defaultRightText
+                        : pt.rowLabel
+                        ? `${pt.rowLabel} • ${defaultRightText}`
+                        : defaultRightText;
 
-                {/* X-Axis Labels */}
-                {plottedPoints.map((pt, idx) => {
-                  const maxLabels = 12;
-                  const step = Math.max(
-                    1,
-                    Math.ceil(plottedPoints.length / maxLabels)
-                  );
-                  const shouldShowX =
-                    idx % step === 0 ||
-                    idx === plottedPoints.length - 1 ||
-                    Boolean(pt.highlight);
+                      return (
+                        <g
+                          key={`hbar-${pt.pointKey}-${idx}`}
+                          className="cursor-pointer"
+                          onClick={() => onSelectPoint(pt.row)}
+                          onMouseEnter={() => setHoveredKey(pt.pointKey)}
+                          onMouseLeave={() => setHoveredKey(null)}
+                        >
+                          {/* Category Label on Left */}
+                          <text
+                            x={padLeft - 12}
+                            y={pt.y + 4}
+                            textAnchor="end"
+                            fill={hl ? hl.color : chartConfig.textColor}
+                            fillOpacity={hl ? 1 : 0.85}
+                            fontSize={hl ? 12 : 11.5}
+                            fontWeight={hl ? 700 : 600}
+                          >
+                            {catLabel}
+                          </text>
 
-                  if (!shouldShowX) return null;
+                          {/* Proportional 100% Background Track */}
+                          <rect
+                            x={padLeft}
+                            y={barY}
+                            width={plotW}
+                            height={barH}
+                            rx={6}
+                            fill={chartConfig.textColor}
+                            fillOpacity={isHovered ? 0.09 : 0.05}
+                          />
 
-                  const shortX =
-                    pt.formattedX.length > 18
-                      ? `${pt.formattedX.slice(0, 16)}…`
-                      : pt.formattedX;
+                          {/* Filled Bar */}
+                          <rect
+                            x={padLeft}
+                            y={barY}
+                            width={barW}
+                            height={barH}
+                            rx={6}
+                            fill={barColor}
+                            fillOpacity={hl || isHovered ? 1 : 0.9}
+                            stroke={hl ? hl.color : "none"}
+                            strokeWidth={hl ? 2 : 0}
+                          />
 
-                  return (
-                    <text
-                      key={`xlabel-${pt.pointKey}-${idx}`}
-                      x={pt.x}
-                      y={padTop + plotH + 24}
-                      textAnchor="middle"
-                      fill={
-                        pt.highlight
-                          ? pt.highlight.color
-                          : chartConfig.textColor
-                      }
-                      fillOpacity={pt.highlight ? 1 : 0.72}
-                      fontSize={pt.highlight ? 11.5 : 10.5}
-                      fontWeight={pt.highlight ? 700 : 500}
-                    >
-                      {shortX}
-                    </text>
-                  );
-                })}
+                          {/* Optional Secondary Target Marker */}
+                          {pt.secondaryY !== null && (
+                            <line
+                              x1={pt.secondaryY}
+                              y1={barY - 3}
+                              x2={pt.secondaryY}
+                              y2={barY + barH + 3}
+                              stroke={chartConfig.secondaryColor}
+                              strokeWidth={2.5}
+                            />
+                          )}
 
-                {/* Secondary Line Points */}
-                {plottedPoints.map((pt, idx) => {
-                  if (pt.secondaryY === null) return null;
-                  return (
-                    <circle
-                      key={`sec-pt-${pt.pointKey}-${idx}`}
-                      cx={pt.x}
-                      cy={pt.secondaryY}
-                      r={3.5}
-                      fill={chartConfig.backgroundColor}
-                      stroke={chartConfig.secondaryColor}
-                      strokeWidth={2}
-                    />
-                  );
-                })}
+                          {/* Value & Share Label on Right */}
+                          {chartConfig.showDataLabels !== "none" ||
+                          hl ||
+                          isHovered ? (
+                            hl && hl.badgeStyle !== "minimal" ? (
+                              <g filter="url(#badgeShadow)">
+                                <rect
+                                  x={Math.min(
+                                    svgWidth - padRight - 10,
+                                    padLeft + barW + 8
+                                  )}
+                                  y={pt.y - 12}
+                                  width={Math.max(
+                                    64,
+                                    badgeText.length * 6.4 + 18
+                                  )}
+                                  height={24}
+                                  rx={6}
+                                  fill={
+                                    hl.badgeStyle === "solid"
+                                      ? hl.color
+                                      : "#ffffff"
+                                  }
+                                  stroke={hl.color}
+                                  strokeWidth={
+                                    hl.badgeStyle === "solid" ? 0 : 1.5
+                                  }
+                                />
+                                <text
+                                  x={
+                                    Math.min(
+                                      svgWidth - padRight - 10,
+                                      padLeft + barW + 8
+                                    ) + 9
+                                  }
+                                  y={pt.y + 4}
+                                  textAnchor="start"
+                                  fill={
+                                    hl.badgeStyle === "solid"
+                                      ? "#ffffff"
+                                      : hl.color
+                                  }
+                                  fontSize={11}
+                                  fontWeight={700}
+                                >
+                                  {badgeText}
+                                </text>
+                              </g>
+                            ) : (
+                              <text
+                                x={padLeft + barW + 8}
+                                y={pt.y + 4}
+                                textAnchor="start"
+                                fill={hl ? hl.color : chartConfig.textColor}
+                                fillOpacity={hl ? 1 : 0.85}
+                                fontSize={hl ? 11.5 : 11}
+                                fontWeight={hl ? 800 : 600}
+                              >
+                                {badgeText}
+                              </text>
+                            )
+                          ) : null}
+                        </g>
+                      );
+                    })}
+                  </>
+                ) : (
+                  <>
+                    {/* Horizontal Grid Lines & Y-Axis Labels */}
+                    {yTicks.map((tickVal, idx) => {
+                      const yPos =
+                        padTop +
+                        plotH -
+                        ((tickVal - minY) / (maxY - minY || 1)) * plotH;
+                      return (
+                        <g key={idx}>
+                          {chartConfig.showGrid && (
+                            <line
+                              x1={padLeft}
+                              y1={yPos}
+                              x2={svgWidth - padRight}
+                              y2={yPos}
+                              stroke={chartConfig.gridColor}
+                              strokeWidth={1}
+                              strokeDasharray={idx === 0 ? undefined : "4 4"}
+                            />
+                          )}
+                          <text
+                            x={padLeft - 12}
+                            y={yPos + 4}
+                            textAnchor="end"
+                            fill={chartConfig.textColor}
+                            fillOpacity={0.65}
+                            fontSize={11}
+                            fontWeight={500}
+                          >
+                            {formatAxisTick(tickVal)}
+                          </text>
+                        </g>
+                      );
+                    })}
 
-                {/* Primary Points & Individual Highlight Markers */}
-                {plottedPoints.map((pt, idx) => {
-                  const hl = pt.highlight;
-                  const isHovered = hoveredKey === pt.pointKey;
-                  const pointColor = hl ? hl.color : chartConfig.primaryColor;
-                  const radius = hl
-                    ? hl.size / 2
-                    : chartConfig.defaultPointSize / 2;
+                    {chartConfig.chartType === "bar" ? (
+                      <>
+                        {/* Vertical Column Bars */}
+                        {plottedPoints.map((pt, idx) => {
+                          const hl = pt.highlight;
+                          const isHovered = hoveredKey === pt.pointKey;
+                          const bandW =
+                            plotW / Math.max(1, plottedPoints.length);
+                          const barW = Math.max(
+                            8,
+                            Math.min(58, bandW * 0.66)
+                          );
+                          const barX = pt.x - barW / 2;
+                          const baselineY = padTop + plotH;
+                          const barH = Math.max(4, baselineY - pt.y);
 
-                  return (
-                    <g
-                      key={`pt-${pt.pointKey}-${idx}`}
-                      className="cursor-pointer"
-                      onClick={() => onSelectPoint(pt.row)}
-                      onMouseEnter={() => setHoveredKey(pt.pointKey)}
-                      onMouseLeave={() => setHoveredKey(null)}
-                    >
-                      {(hl || isHovered) && (
-                        <circle
-                          cx={pt.x}
-                          cy={pt.y}
-                          r={radius + (hl ? 6 : 5)}
-                          fill={pointColor}
-                          fillOpacity={hl ? 0.22 : 0.15}
-                        />
-                      )}
+                          return (
+                            <g
+                              key={`vbar-${pt.pointKey}-${idx}`}
+                              className="cursor-pointer"
+                              onClick={() => onSelectPoint(pt.row)}
+                              onMouseEnter={() => setHoveredKey(pt.pointKey)}
+                              onMouseLeave={() => setHoveredKey(null)}
+                            >
+                              {/* Subtle column proportional track */}
+                              <rect
+                                x={barX}
+                                y={padTop}
+                                width={barW}
+                                height={plotH}
+                                rx={6}
+                                fill={chartConfig.textColor}
+                                fillOpacity={isHovered ? 0.06 : 0.025}
+                              />
 
-                      <circle
-                        cx={pt.x}
-                        cy={pt.y}
-                        r={radius}
-                        fill={hl ? pointColor : chartConfig.backgroundColor}
-                        stroke={pointColor}
-                        strokeWidth={hl ? 3 : 2.5}
-                      />
+                              {/* Column Bar */}
+                              <rect
+                                x={barX}
+                                y={pt.y}
+                                width={barW}
+                                height={barH}
+                                rx={Math.min(6, barW / 2)}
+                                fill={
+                                  hl
+                                    ? hl.color
+                                    : "url(#primaryBarGradient)"
+                                }
+                                stroke={
+                                  hl
+                                    ? hl.color
+                                    : isHovered
+                                    ? chartConfig.primaryColor
+                                    : "none"
+                                }
+                                strokeWidth={hl || isHovered ? 2 : 0}
+                              />
+                            </g>
+                          );
+                        })}
 
-                      {hl && radius >= 6 && (
-                        <circle cx={pt.x} cy={pt.y} r={2.5} fill="#ffffff" />
-                      )}
-                    </g>
-                  );
-                })}
+                        {/* Secondary Y Line over Vertical Bars */}
+                        {secondaryLinePath && (
+                          <path
+                            d={secondaryLinePath}
+                            fill="none"
+                            stroke={chartConfig.secondaryColor}
+                            strokeWidth={Math.max(2, chartConfig.lineWidth - 1)}
+                            strokeDasharray="6 6"
+                            strokeLinecap="round"
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {/* Area Gradient Fill */}
+                        {chartConfig.chartType === "area" &&
+                          areaPath &&
+                          plottedPoints.length > 1 && (
+                            <path
+                              d={areaPath}
+                              fill="url(#primaryAreaGradient)"
+                            />
+                          )}
 
-                {/* Data Labels & Highlight Callout Badges */}
-                {plottedPoints.map((pt, idx) => {
-                  const hl = pt.highlight;
-                  const isHovered = hoveredKey === pt.pointKey;
+                        {/* Secondary Y Line */}
+                        {secondaryLinePath && (
+                          <path
+                            d={secondaryLinePath}
+                            fill="none"
+                            stroke={chartConfig.secondaryColor}
+                            strokeWidth={Math.max(2, chartConfig.lineWidth - 1)}
+                            strokeDasharray="6 6"
+                            strokeLinecap="round"
+                          />
+                        )}
 
-                  const shouldRenderLabel =
-                    Boolean(hl) ||
-                    isHovered ||
-                    chartConfig.showDataLabels === "all";
+                        {/* Primary Line */}
+                        {plottedPoints.length > 1 && (
+                          <path
+                            d={primaryLinePath}
+                            fill="none"
+                            stroke={chartConfig.primaryColor}
+                            strokeWidth={chartConfig.lineWidth}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        )}
 
-                  if (
-                    !shouldRenderLabel ||
-                    (chartConfig.showDataLabels === "none" && !hl && !isHovered)
-                  ) {
-                    return null;
-                  }
+                        {/* Vertical Guide Lines for Highlighted Points */}
+                        {plottedPoints.map((pt) => {
+                          if (!pt.highlight) return null;
+                          return (
+                            <line
+                              key={`vline-${pt.pointKey}`}
+                              x1={pt.x}
+                              y1={pt.y}
+                              x2={pt.x}
+                              y2={padTop + plotH}
+                              stroke={pt.highlight.color}
+                              strokeWidth={1.5}
+                              strokeDasharray="3 3"
+                              strokeOpacity={0.65}
+                            />
+                          );
+                        })}
 
-                  if (!hl) {
-                    const labelText = pt.rowLabel
-                      ? `${pt.rowLabel} (${pt.formattedY})`
-                      : pt.formattedY;
-                    return (
-                      <g
-                        key={`lbl-${pt.pointKey}-${idx}`}
-                        className="cursor-pointer"
-                        onClick={() => onSelectPoint(pt.row)}
-                      >
+                        {/* Secondary Line Points */}
+                        {plottedPoints.map((pt, idx) => {
+                          if (pt.secondaryY === null) return null;
+                          return (
+                            <circle
+                              key={`sec-pt-${pt.pointKey}-${idx}`}
+                              cx={pt.x}
+                              cy={pt.secondaryY}
+                              r={3.5}
+                              fill={chartConfig.backgroundColor}
+                              stroke={chartConfig.secondaryColor}
+                              strokeWidth={2}
+                            />
+                          );
+                        })}
+
+                        {/* Primary Points & Individual Highlight Markers */}
+                        {plottedPoints.map((pt, idx) => {
+                          const hl = pt.highlight;
+                          const isHovered = hoveredKey === pt.pointKey;
+                          const pointColor = hl
+                            ? hl.color
+                            : chartConfig.primaryColor;
+                          const radius = hl
+                            ? hl.size / 2
+                            : chartConfig.defaultPointSize / 2;
+
+                          return (
+                            <g
+                              key={`pt-${pt.pointKey}-${idx}`}
+                              className="cursor-pointer"
+                              onClick={() => onSelectPoint(pt.row)}
+                              onMouseEnter={() => setHoveredKey(pt.pointKey)}
+                              onMouseLeave={() => setHoveredKey(null)}
+                            >
+                              {(hl || isHovered) && (
+                                <circle
+                                  cx={pt.x}
+                                  cy={pt.y}
+                                  r={radius + (hl ? 6 : 5)}
+                                  fill={pointColor}
+                                  fillOpacity={hl ? 0.22 : 0.15}
+                                />
+                              )}
+
+                              <circle
+                                cx={pt.x}
+                                cy={pt.y}
+                                r={radius}
+                                fill={
+                                  hl ? pointColor : chartConfig.backgroundColor
+                                }
+                                stroke={pointColor}
+                                strokeWidth={hl ? 3 : 2.5}
+                              />
+
+                              {hl && radius >= 6 && (
+                                <circle
+                                  cx={pt.x}
+                                  cy={pt.y}
+                                  r={2.5}
+                                  fill="#ffffff"
+                                />
+                              )}
+                            </g>
+                          );
+                        })}
+                      </>
+                    )}
+
+                    {/* X-Axis Labels */}
+                    {plottedPoints.map((pt, idx) => {
+                      const maxLabels = 12;
+                      const step = Math.max(
+                        1,
+                        Math.ceil(plottedPoints.length / maxLabels)
+                      );
+                      const shouldShowX =
+                        idx % step === 0 ||
+                        idx === plottedPoints.length - 1 ||
+                        Boolean(pt.highlight);
+
+                      if (!shouldShowX) return null;
+
+                      const shortX =
+                        pt.formattedX.length > 18
+                          ? `${pt.formattedX.slice(0, 16)}…`
+                          : pt.formattedX;
+
+                      return (
                         <text
+                          key={`xlabel-${pt.pointKey}-${idx}`}
                           x={pt.x}
-                          y={pt.y - chartConfig.defaultPointSize / 2 - 8}
+                          y={padTop + plotH + 24}
                           textAnchor="middle"
-                          fill={chartConfig.textColor}
-                          fillOpacity={0.85}
-                          fontSize={10.5}
-                          fontWeight={600}
+                          fill={
+                            pt.highlight
+                              ? pt.highlight.color
+                              : chartConfig.textColor
+                          }
+                          fillOpacity={pt.highlight ? 1 : 0.72}
+                          fontSize={pt.highlight ? 11.5 : 10.5}
+                          fontWeight={pt.highlight ? 700 : 500}
                         >
-                          {labelText}
+                          {shortX}
                         </text>
-                      </g>
-                    );
-                  }
+                      );
+                    })}
 
-                  const titlePart =
-                    hl.customLabel || pt.rowLabel || pt.formattedX;
-                  const valuePart = hl.showValue ? pt.formattedY : "";
-                  const fullBadgeText =
-                    titlePart && valuePart
-                      ? `${titlePart} • ${valuePart}`
-                      : titlePart || valuePart;
+                    {/* Data Labels & Highlight Callout Badges */}
+                    {plottedPoints.map((pt, idx) => {
+                      const hl = pt.highlight;
+                      const isHovered = hoveredKey === pt.pointKey;
 
-                  const estCharWidth = 6.6;
-                  const badgeW = Math.max(
-                    68,
-                    Math.min(260, fullBadgeText.length * estCharWidth + 24)
-                  );
-                  const badgeH = 26;
-                  const offsetAbove = hl.size / 2 + 14;
+                      const shouldRenderLabel =
+                        Boolean(hl) ||
+                        isHovered ||
+                        chartConfig.showDataLabels === "all" ||
+                        (chartConfig.chartType === "bar" &&
+                          plottedPoints.length <= 16 &&
+                          chartConfig.showDataLabels !== "none");
 
-                  const clampedCenterX = Math.max(
-                    padLeft + badgeW / 2 - 20,
-                    Math.min(svgWidth - padRight - badgeW / 2 + 20, pt.x)
-                  );
-                  const badgeX = clampedCenterX - badgeW / 2;
-                  const badgeY = Math.max(8, pt.y - offsetAbove - badgeH);
+                      if (
+                        !shouldRenderLabel ||
+                        (chartConfig.showDataLabels === "none" &&
+                          !hl &&
+                          !isHovered)
+                      ) {
+                        return null;
+                      }
 
-                  if (hl.badgeStyle === "minimal") {
-                    return (
-                      <g
-                        key={`hl-badge-${pt.pointKey}-${idx}`}
-                        className="cursor-pointer"
-                        onClick={() => onSelectPoint(pt.row)}
-                      >
-                        <text
-                          x={clampedCenterX}
-                          y={badgeY + 17}
-                          textAnchor="middle"
-                          fill={hl.color}
-                          fontSize={12}
-                          fontWeight={800}
+                      if (!hl) {
+                        const labelText = pt.rowLabel
+                          ? `${pt.rowLabel} (${pt.formattedY})`
+                          : pt.formattedY;
+                        return (
+                          <g
+                            key={`lbl-${pt.pointKey}-${idx}`}
+                            className="cursor-pointer"
+                            onClick={() => onSelectPoint(pt.row)}
+                          >
+                            <text
+                              x={pt.x}
+                              y={
+                                pt.y -
+                                (chartConfig.chartType === "bar"
+                                  ? 8
+                                  : chartConfig.defaultPointSize / 2 + 8)
+                              }
+                              textAnchor="middle"
+                              fill={chartConfig.textColor}
+                              fillOpacity={0.85}
+                              fontSize={10.5}
+                              fontWeight={600}
+                            >
+                              {labelText}
+                            </text>
+                          </g>
+                        );
+                      }
+
+                      const titlePart =
+                        hl.customLabel || pt.rowLabel || pt.formattedX;
+                      const valuePart = hl.showValue ? pt.formattedY : "";
+                      const fullBadgeText =
+                        titlePart && valuePart
+                          ? `${titlePart} • ${valuePart}`
+                          : titlePart || valuePart;
+
+                      const estCharWidth = 6.6;
+                      const badgeW = Math.max(
+                        68,
+                        Math.min(260, fullBadgeText.length * estCharWidth + 24)
+                      );
+                      const badgeH = 26;
+                      const offsetAbove =
+                        chartConfig.chartType === "bar" ? 12 : hl.size / 2 + 14;
+
+                      const clampedCenterX = Math.max(
+                        padLeft + badgeW / 2 - 20,
+                        Math.min(
+                          svgWidth - padRight - badgeW / 2 + 20,
+                          pt.x
+                        )
+                      );
+                      const badgeX = clampedCenterX - badgeW / 2;
+                      const badgeY = Math.max(8, pt.y - offsetAbove - badgeH);
+
+                      if (hl.badgeStyle === "minimal") {
+                        return (
+                          <g
+                            key={`hl-badge-${pt.pointKey}-${idx}`}
+                            className="cursor-pointer"
+                            onClick={() => onSelectPoint(pt.row)}
+                          >
+                            <text
+                              x={clampedCenterX}
+                              y={badgeY + 17}
+                              textAnchor="middle"
+                              fill={hl.color}
+                              fontSize={12}
+                              fontWeight={800}
+                            >
+                              {fullBadgeText}
+                            </text>
+                          </g>
+                        );
+                      }
+
+                      const isSolid = hl.badgeStyle === "solid";
+
+                      return (
+                        <g
+                          key={`hl-badge-${pt.pointKey}-${idx}`}
+                          filter="url(#badgeShadow)"
+                          className="cursor-pointer"
+                          onClick={() => onSelectPoint(pt.row)}
                         >
-                          {fullBadgeText}
-                        </text>
-                      </g>
-                    );
-                  }
+                          <polygon
+                            points={`${pt.x - 5},${badgeY + badgeH - 1} ${
+                              pt.x + 5
+                            },${badgeY + badgeH - 1} ${pt.x},${
+                              badgeY + badgeH + 6
+                            }`}
+                            fill={isSolid ? hl.color : "#ffffff"}
+                          />
 
-                  const isSolid = hl.badgeStyle === "solid";
+                          <rect
+                            x={badgeX}
+                            y={badgeY}
+                            width={badgeW}
+                            height={badgeH}
+                            rx={8}
+                            fill={isSolid ? hl.color : "#ffffff"}
+                            stroke={hl.color}
+                            strokeWidth={isSolid ? 0 : 2}
+                          />
 
-                  return (
-                    <g
-                      key={`hl-badge-${pt.pointKey}-${idx}`}
-                      filter="url(#badgeShadow)"
-                      className="cursor-pointer"
-                      onClick={() => onSelectPoint(pt.row)}
-                    >
-                      <polygon
-                        points={`${pt.x - 5},${badgeY + badgeH - 1} ${
-                          pt.x + 5
-                        },${badgeY + badgeH - 1} ${pt.x},${badgeY + badgeH + 6}`}
-                        fill={isSolid ? hl.color : "#ffffff"}
-                      />
-
-                      <rect
-                        x={badgeX}
-                        y={badgeY}
-                        width={badgeW}
-                        height={badgeH}
-                        rx={8}
-                        fill={isSolid ? hl.color : "#ffffff"}
-                        stroke={hl.color}
-                        strokeWidth={isSolid ? 0 : 2}
-                      />
-
-                      <text
-                        x={clampedCenterX}
-                        y={badgeY + 17}
-                        textAnchor="middle"
-                        fill={isSolid ? "#ffffff" : hl.color}
-                        fontSize={11.5}
-                        fontWeight={700}
-                      >
-                        {fullBadgeText}
-                      </text>
-                    </g>
-                  );
-                })}
+                          <text
+                            x={clampedCenterX}
+                            y={badgeY + 17}
+                            textAnchor="middle"
+                            fill={isSolid ? "#ffffff" : hl.color}
+                            fontSize={11.5}
+                            fontWeight={700}
+                          >
+                            {fullBadgeText}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </>
+                )}
               </svg>
             </div>
           )}
