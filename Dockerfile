@@ -46,4 +46,4 @@ EXPOSE 3000
 CMD ["/app/docker-entrypoint.sh"]
 
 
-# Teste
+# Test
