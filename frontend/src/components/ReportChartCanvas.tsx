@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Percent,
   ArrowDownWideNarrow,
+  CaseSensitive,
 } from "lucide-react";
 import GrafiquinhoLogo from "@/components/GrafiquinhoLogo";
 import { ChartConfig, ColumnMeta, PointHighlight } from "@/types/chart";
@@ -19,6 +20,7 @@ import {
   extractGroupedXKey,
   formatDateAxis,
   formatMetricValue,
+  formatTitleCase,
 } from "@/lib/formatters";
 
 interface ReportChartCanvasProps {
@@ -348,6 +350,7 @@ export default function ReportChartCanvas({
 
   const isHorizontalBar = chartConfig.chartType === "bar_horizontal";
   const valueMode = chartConfig.valueMode || "absolute";
+  const useTitleCase = chartConfig.useTitleCase !== false;
 
   const svgWidth = 960;
   const baseHeight =
@@ -500,11 +503,14 @@ export default function ReportChartCanvas({
         plotY,
         sharePct,
         rawSecondaryY: item.rawSecondaryY,
-        formattedX: formatDateAxis(item.rawX, chartConfig.dateFormat),
+        formattedX: formatTitleCase(
+          formatDateAxis(item.rawX, chartConfig.dateFormat),
+          useTitleCase
+        ),
         formattedY,
         formattedAbsY,
         formattedShare,
-        rowLabel: item.rowLabel,
+        rowLabel: formatTitleCase(item.rowLabel, useTitleCase),
         highlight: hl,
       };
     });
@@ -530,6 +536,7 @@ export default function ReportChartCanvas({
     chartConfig.dateFormat,
     chartConfig.chartType,
     valueMode,
+    useTitleCase,
     isBarMode,
     isHorizontalBar,
     effectiveValueFormat,
@@ -565,7 +572,10 @@ export default function ReportChartCanvas({
     return buildLinePath(validSec, chartConfig.curveType);
   }, [plottedPoints, chartConfig.curveType]);
 
-  const rawYColLabel = yColMeta?.label || chartConfig.yColumn;
+  const rawYColLabel = formatTitleCase(
+    yColMeta?.label || chartConfig.yColumn,
+    useTitleCase
+  );
   const baseColLabel =
     effectiveAgg === "count"
       ? "Quantidade de Registros"
@@ -587,9 +597,12 @@ export default function ReportChartCanvas({
         })}%`
       : formatMetricValue(val, effectiveValueFormat);
 
-  const secColLabel =
+  const secColLabel = formatTitleCase(
     columnsMeta.find((c) => c.name === chartConfig.secondaryYColumn)?.label ||
-    chartConfig.secondaryYColumn;
+      chartConfig.secondaryYColumn ||
+      "",
+    useTitleCase
+  );
 
   const handleDownloadPng = async () => {
     if (!reportCardRef.current) return;
@@ -728,6 +741,24 @@ export default function ReportChartCanvas({
                 {chartConfig.categorySort === "value_desc"
                   ? "Ordem: Maior → Menor"
                   : "Ordenar Maior → Menor"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  onChangeConfig({
+                    useTitleCase: !useTitleCase,
+                  })
+                }
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                  useTitleCase
+                    ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                }`}
+                title="Habilitar ou desabilitar formatação Title Case nas categorias e legendas do gráfico"
+              >
+                <CaseSensitive className="w-4 h-4" />
+                {useTitleCase ? "Title Case: Ativo" : "Title Case: Off"}
               </button>
 
               {/* Target / Meta Field Selector + Remove Option */}
@@ -1016,7 +1047,10 @@ export default function ReportChartCanvas({
 
                       const badgeText = hl
                         ? [
-                            hl.customLabel || pt.rowLabel,
+                            formatTitleCase(
+                              hl.customLabel || pt.rowLabel,
+                              useTitleCase
+                            ),
                             hl.showValue ? defaultRightText : "",
                           ]
                             .filter(Boolean)
@@ -1524,8 +1558,10 @@ export default function ReportChartCanvas({
                         );
                       }
 
-                      const titlePart =
-                        hl.customLabel || pt.rowLabel || pt.formattedX;
+                      const titlePart = formatTitleCase(
+                        hl.customLabel || pt.rowLabel || pt.formattedX,
+                        useTitleCase
+                      );
                       const valuePart = hl.showValue ? pt.formattedY : "";
                       const fullBadgeText =
                         titlePart && valuePart

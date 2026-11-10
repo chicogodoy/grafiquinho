@@ -45,6 +45,7 @@ export interface ChartConfig {
   aspectRatio: "16:9" | "4:3" | "1:1";
   showGrid: boolean;
   showLegend: boolean;
+  useTitleCase?: boolean;
 }
 
 export interface ProjectMeta {

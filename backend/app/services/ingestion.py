@@ -252,6 +252,7 @@ def build_default_chart_config(
         labelColumn=label_col,
         valueFormat="number",
         dateFormat="raw",
+        useTitleCase=True,
     )
     return cfg.model_dump()
 

@@ -24,7 +24,11 @@ import {
   PointHighlight,
   QueryFilters,
 } from "@/types/chart";
-import { extractGroupedXKey, formatMetricValue } from "@/lib/formatters";
+import {
+  extractGroupedXKey,
+  formatMetricValue,
+  formatTitleCase,
+} from "@/lib/formatters";
 
 interface DataPreviewTableProps {
   columnsMeta: ColumnMeta[];
@@ -455,6 +459,21 @@ export default function DataPreviewTable({
               ))}
             </select>
           </div>
+
+          {/* Title Case Toggle for Categories & Legends */}
+          <label className="inline-flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-indigo-200 text-xs shadow-2xs cursor-pointer select-none hover:bg-indigo-50/50 transition-colors">
+            <input
+              type="checkbox"
+              checked={chartConfig.useTitleCase !== false}
+              onChange={(e) =>
+                onChangeChartConfig({ useTitleCase: e.target.checked })
+              }
+              className="w-3.5 h-3.5 rounded text-indigo-600"
+            />
+            <span className="font-bold text-indigo-900">
+              Title Case (Categorias/Legendas)
+            </span>
+          </label>
         </div>
       </div>
 
@@ -587,7 +606,12 @@ export default function DataPreviewTable({
                       style={{ backgroundColor: hl.color }}
                     />
                   )}
-                  <span>{chip.key}</span>
+                  <span>
+                    {formatTitleCase(
+                      chip.key,
+                      chartConfig.useTitleCase !== false
+                    )}
+                  </span>
                   {chip.count > 1 && (
                     <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/80 text-slate-500 border border-slate-200">
                       {chip.count}

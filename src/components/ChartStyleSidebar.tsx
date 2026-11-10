@@ -580,6 +580,20 @@ export default function ChartStyleSidebar({
                   className="w-4 h-4 rounded text-blue-600"
                 />
               </label>
+
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="text-slate-700 font-medium">
+                  Usar Title Case nas categorias e legendas
+                </span>
+                <input
+                  type="checkbox"
+                  checked={chartConfig.useTitleCase !== false}
+                  onChange={(e) =>
+                    onChangeConfig({ useTitleCase: e.target.checked })
+                  }
+                  className="w-4 h-4 rounded text-blue-600"
+                />
+              </label>
             </div>
           </div>
         )}
@@ -683,6 +697,27 @@ export default function ChartStyleSidebar({
                 <option value="dd_mm_yyyy">Data BR (15/01/2026)</option>
                 <option value="raw">Valor Original da Coluna</option>
               </select>
+            </div>
+
+            <div className="pt-2 border-t border-slate-200">
+              <label className="flex items-center justify-between cursor-pointer p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div>
+                  <div className="font-semibold text-slate-800">
+                    Formatação Title Case (Categorias e Legendas)
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Padroniza iniciais maiúsculas em categorias e séries
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={chartConfig.useTitleCase !== false}
+                  onChange={(e) =>
+                    onChangeConfig({ useTitleCase: e.target.checked })
+                  }
+                  className="w-4 h-4 rounded text-blue-600 shrink-0"
+                />
+              </label>
             </div>
           </div>
         )}

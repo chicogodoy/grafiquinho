@@ -111,3 +111,73 @@ export function formatDateAxis(
   }
   return raw;
 }
+
+const LOWERCASE_WORDS_PT = new Set([
+  "de",
+  "da",
+  "do",
+  "das",
+  "dos",
+  "e",
+  "em",
+  "no",
+  "na",
+  "nos",
+  "nas",
+  "ao",
+  "aos",
+  "por",
+  "para",
+  "com",
+  "sem",
+  "sob",
+  "sobre",
+  "a",
+  "o",
+  "as",
+  "os",
+]);
+
+export function formatTitleCase(text: string, enabled: boolean = true): string {
+  if (!enabled || !text) return text;
+  const trimmed = String(text).trim();
+  if (!trimmed) return text;
+
+  // Preserve pure numbers, dates, or timestamps without letters
+  if (!/[a-zA-ZÀ-ÿ]/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Replace underscores with spaces if the label looks like a snake_case identifier
+  const normalized = trimmed.includes("_")
+    ? trimmed.replace(/_+/g, " ")
+    : trimmed;
+
+  const tokens = normalized.split(/(\s+|[/:()-])/);
+  let isFirstWordInSegment = true;
+
+  return tokens
+    .map((token) => {
+      if (!token) return token;
+      if (/^(\s+|[/:()-])$/.test(token)) {
+        if (/[:(-]/.test(token)) {
+          isFirstWordInSegment = true;
+        }
+        return token;
+      }
+
+      const lower = token.toLocaleLowerCase("pt-BR");
+      const shouldKeepLower =
+        !isFirstWordInSegment && LOWERCASE_WORDS_PT.has(lower);
+      isFirstWordInSegment = false;
+
+      if (shouldKeepLower) {
+        return lower;
+      }
+
+      return (
+        lower.charAt(0).toLocaleUpperCase("pt-BR") + lower.slice(1)
+      );
+    })
+    .join("");
+}

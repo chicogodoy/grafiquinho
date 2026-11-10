@@ -49,6 +49,7 @@ class ChartConfig(BaseModel):
     aspectRatio: str = "16:9"  # "16:9" | "4:3" | "1:1"
     showGrid: bool = True
     showLegend: bool = True
+    useTitleCase: bool = True
 
 
 class CopyPastePayload(BaseModel):
